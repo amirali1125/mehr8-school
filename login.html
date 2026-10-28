@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ورود به سامانه</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/school.css">
+</head>
+<body class="login-page">
+  <main class="login-wrap" id="view">
+    <a class="btn login-back" id="back-site" href="site.html">→ بازگشت به سایت مدرسه</a>
+    <section class="card login-card" aria-labelledby="l-title">
+      <div class="login-brand"><span class="tb-logo" aria-hidden="true"></span><div><h1 id="l-title">ورود به سامانه</h1><p class="muted small" id="l-product"></p></div></div>
+      <div class="login-tabs" role="tablist" aria-label="ورود به عنوان">
+        <button type="button" role="tab" id="t-staff" data-as="staff" aria-controls="lpanel">کارکنان</button>
+        <button type="button" role="tab" id="t-student" data-as="student" aria-controls="lpanel">دانش‌آموز</button>
+        <button type="button" role="tab" id="t-parent" data-as="parent" aria-controls="lpanel">ولی</button>
+      </div>
+      <div id="lpanel" role="tabpanel"><form id="lform" novalidate>
+        <label class="field"><span>مدرسه</span><select class="input" id="l-school"></select></label>
+        <label class="field"><span id="l-user-l">نام کاربری</span><input class="input" id="l-user" autocomplete="username" dir="ltr" autocapitalize="off" spellcheck="false" aria-describedby="l-hint"></label>
+        <label class="field"><span>رمز عبور</span><input class="input" id="l-pass" type="password" autocomplete="current-password" dir="ltr"></label>
+        <button class="btn primary login-btn" type="submit" id="l-go">ورود</button>
+        <p class="muted small" id="l-hint" style="margin:10px 0 0"></p>
+      </form></div>
+    </section>
+    <section class="card login-card" id="demo" aria-labelledby="d-title" hidden>
+      <h2 id="d-title" style="margin-top:0">ورود نمایشی</h2>
+      <div id="demo-list" class="demo-list"></div>
+    </section>
+    <a class="card login-card apply-cta" href="apply.html"><b>متقاضی همکاری هستید؟</b><span class="muted small">با کد ملی وارد شوید و فرم همکاری را پر کنید؛ بار اول رمز همان کد ملی است.</span></a>
+    <p class="muted small login-note">این نسخهٔ نمونه است و ورود را در خود مرورگر بررسی می‌کند؛ در نسخهٔ فروش، ورود روی سرور انجام می‌شود.</p>
+  </main>
+  <div id="modal-root"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="js/catalog.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/school-data.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/data-mehr8-timetable.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/shell.js"></script>
+  <script>
+    (() => {
+      const { esc } = UI, $ = s => document.querySelector(s);
+      const next = new URLSearchParams(location.search).get('next') || '';
+      // Three doors: staff, students and parents. Each tab shows its own demo accounts and refuses accounts of another kind.
+      const AS = {
+        staff: { user: 'نام کاربری', go: 'ورود کارکنان', hint: '', fits: u => !u.roles.some(r => Auth.FAMILY.includes(r)) },
+        student: { user: 'نام کاربری دانش‌آموز', go: 'ورود دانش‌آموز', hint: 'نام کاربری و رمز را مدرسه به شما داده است. اگر ندارید از معلم راهنمای پایه بخواهید.', fits: u => u.roles.includes('student') },
+        parent: { user: 'نام کاربری ولی', go: 'ورود اولیا', hint: 'برای دیدن حضور، نمره‌ها، کارنامه، برنامهٔ مطالعه و اطلاعیه‌های فرزندتان. نام کاربری و رمز را مدرسه می‌دهد.', fits: u => u.roles.includes('parent') },
+      };
+      let as = AS[new URLSearchParams(location.search).get('as')] ? new URLSearchParams(location.search).get('as') : 'staff';
+      function setAs(k, focus) {
+        as = k;
+        document.querySelectorAll('.login-tabs [role=tab]').forEach(b => { const on = b.dataset.as === k; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+        $('#lpanel').setAttribute('aria-labelledby', 't-' + k);
+        document.querySelector('.apply-cta').hidden = k !== 'staff';
+        $('#l-user-l').textContent = AS[k].user; $('#l-go').textContent = AS[k].go; $('#l-hint').innerHTML = AS[k].hint;
+        const u = new URL(location.href); if (k === 'staff') u.searchParams.delete('as'); else u.searchParams.set('as', k); history.replaceState(null, '', u);
+        demos();
+      }
+      document.querySelector('.login-tabs').onclick = e => { const b = e.target.closest('[data-as]'); if (b) setAs(b.dataset.as); };
+      document.querySelector('.login-tabs').onkeydown = e => {
+        const keys = ['staff', 'student', 'parent'], i = keys.indexOf(as);
+        // RTL: the right arrow goes to the previous tab.
+        const n = { ArrowLeft: i + 1, ArrowRight: i - 1, Home: 0, End: keys.length - 1 }[e.key]; if (n == null) return;
+        e.preventDefault(); setAs(keys[(n + keys.length) % keys.length], true);
+      };
+      // Only pages of this app are valid targets after sign-in.
+      const go = owner => { const ok = /^(school|panel)\.html(#[\w\/-]*)?$/.test(next) && next.startsWith(owner ? 'panel' : 'school'); location.href = ok ? next : (owner ? 'panel.html#/dashboard' : 'school.html#/desk'); };
+      document.querySelector('.tb-logo').innerHTML = Shell.icon('layers');
+      $('#l-product').textContent = Store.state.productName;
+      const qs = new URLSearchParams(location.search), schools = Store.state.schools, pref = Shell.pref();
+      // Coming from a school's public site (site.html): that school is picked and a way back is shown.
+      const fromSchool = schools.find(s => s.id === qs.get('school'));
+      if (fromSchool) Shell.setPref({ school: fromSchool.id }), pref.school = fromSchool.id;
+      $('#l-school').innerHTML = schools.map(s => `<option value="${s.id}" ${s.id === pref.school ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+      // Demo accounts left off the list for the sales demo (they still exist and work).
+      const HIDE_DEMO = ['counselor7', 'counselor10', 'counselor11', 'counselor12'];
+      function demos() {
+        const box = $('#demo'); box.hidden = !Auth.demoOn(); if (box.hidden) return;
+        const sid = $('#l-school').value;
+        const list = Auth.users(sid).filter(u => u.demo && !u.pass && u.active !== false && AS[as].fits(u) && !HIDE_DEMO.includes(u.id));
+        $('#demo-list').innerHTML = list.map(u => `<button type="button" class="demo-acc" data-uid="${u.id}"><b>${esc(u.name)}</b><span class="muted small">${u.roles.map(r => esc(Auth.ROLE_NAME[r])).join(' + ')}${u.grade && u.roles.includes('counselor') ? ` · پایهٔ ${esc(SchoolData.GRADE_NAME[u.grade])}` : ''}</span></button>`).join('')
+          + (Store.state.ownerPass || as !== 'staff' ? '' : '<button type="button" class="demo-acc owner" data-uid="owner"><b>مالک سامانه</b><span class="muted small">پنل مالک و پیش‌نمایش همهٔ نقش‌ها</span></button>');
+      }
+      setAs(as);
+      $('#l-school').onchange = () => { Shell.setPref({ school: $('#l-school').value }); demos(); };
+      $('#demo-list').onclick = e => {
+        const b = e.target.closest('[data-uid]'); if (!b) return;
+        const sid = $('#l-school').value;
+        if (!Auth.demoLogin(sid, b.dataset.uid)) return UI.toast('این حساب دیگر نمایشی نیست.');
+        if (b.dataset.uid !== 'owner') { const u = Auth.user(); Shell.setPref({ school: sid, role: u.roles[0] }); }
+        go(b.dataset.uid === 'owner');
+      };
+      $('#lform').onsubmit = async e => {
+        e.preventDefault();
+        const user = $('#l-user').value.trim(), pass = $('#l-pass').value;
+        if (!user) return UI.invalid('#l-user', 'نام کاربری را بنویسید.');
+        if (!pass && !(user === 'owner' && !Store.state.ownerPass)) return UI.invalid('#l-pass', 'رمز عبور را بنویسید.');
+        if (user === 'owner') { if (as !== 'staff') return UI.invalid('#l-user', 'مالک سامانه از زبانهٔ «کارکنان» وارد می‌شود.'); const err = await Auth.ownerLogin(pass); if (err) return UI.invalid('#l-pass', err); return go(true); }
+        const sid = $('#l-school').value, acc = Auth.users(sid).find(x => x.username === user && x.active !== false);
+        // An account of another kind is refused before the password is checked, with the tab it belongs to.
+        if (acc && !AS[as].fits(acc)) { const right = Object.keys(AS).find(k => AS[k].fits(acc)); return UI.invalid('#l-user', `این حساب ${right === 'staff' ? 'کارکنان' : right === 'student' ? 'دانش‌آموز' : 'ولی'} است؛ از زبانهٔ «${right === 'staff' ? 'کارکنان' : right === 'student' ? 'دانش‌آموز' : 'ولی'}» وارد شوید.`); }
+        const err = await Auth.login(sid, user, pass);
+        if (err) { $('#l-pass').value = ''; return UI.invalid('#l-pass', err); }
+        Shell.setPref({ school: sid, role: Auth.user().roles[0] }); go(false);
+      };
+      if (Auth.user()) go(Auth.user().owner);
+    })();
+  </script>
+</body>
+</html>

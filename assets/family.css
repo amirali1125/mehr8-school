@@ -1,0 +1,65 @@
+/* The student's and the parent's pages (js/family.js). */
+.fm-who { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; margin-bottom: 16px; }
+.fm-who .sphoto { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--tone-bg); color: var(--tone-ink); flex: none; overflow: hidden; }
+.fm-who .sphoto img { width: 100%; height: 100%; object-fit: cover; }
+.fm-who b { font-size: 16px; }
+.fm-kpis { margin-bottom: 16px; }
+.fm-kpis .v-txt { font-size: 22px; white-space: nowrap; }
+.fm-list.fm-day li { padding: 6px 0; }
+.fm-list.fm-day li.past .tile { opacity: .45; }
+.fm-list.fm-day li.past .fm-l b { color: var(--ink2); font-weight: 600; }
+.fm-list.fm-day li.now { background: var(--blue-bg); border-radius: 10px; padding-inline: 8px; border-bottom-color: transparent; }
+.fm-kpis:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.fm-card .card-head h2 { margin: 0; }
+.fm-list { list-style: none; margin: 0; padding: 0; }
+.fm-list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); min-height: 44px; }
+.fm-list li:last-child { border-bottom: 0; }
+.fm-list .tile { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--tone-bg); color: var(--tone-ink); }
+.fm-list .tile .icon { width: 19px; height: 19px; }
+.fm-l { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fm-l > b, .fm-link { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fm-link { all: unset; cursor: pointer; font-weight: 700; color: var(--brand-ink, var(--brand)); border-radius: 4px; }
+.fm-link:hover { text-decoration: underline; }
+.fm-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.fm-score { display: flex; flex-direction: column; align-items: center; min-width: 52px; }
+.fm-score b { font-size: 18px; color: var(--teal); }
+.fm-score.low b { color: #b91c1c; }
+
+/* notices */
+.fm-notices { display: grid; gap: 12px; }
+.fm-notice { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
+.fm-card .fm-notice { border-width: 0 0 1px; border-radius: 0; padding: 8px 0; background: none; }
+.fm-card .fm-notice:last-child { border-bottom: 0; }
+.fm-notice.new { box-shadow: inset -3px 0 0 var(--blue); }
+.fm-card .fm-notice.new { box-shadow: none; }
+.fm-notice p { margin: 6px 0; line-height: 1.8; white-space: pre-line; }
+.fm-clip { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* weekly timetable: one tinted cell per subject, its icon above the name */
+.fm-week td.fm-tt { background: var(--tone-bg); color: var(--tone-ink); font-weight: 700; border-radius: 8px; text-align: center; font-size: 13px; }
+.fm-tt-i { display: block; line-height: 0; margin-bottom: 2px; }
+.fm-tt-i .icon { width: 16px; height: 16px; }
+.fm-tt-t { display: block; font-size: 12px; font-weight: 500; margin-top: 2px; }
+.fm-week { border-collapse: separate; border-spacing: 4px; min-width: 760px; }
+.fm-week tr.today th[scope=row] { color: var(--brand); }
+
+/* discipline rules */
+.fm-steps summary { cursor: pointer; padding: 2px 0; }
+.fm-steps ol { margin: 10px 0; padding-inline-start: 0; list-style: none; display: grid; gap: 6px; }
+.fm-steps li { line-height: 1.8; padding: 4px 8px; border-radius: 8px; }
+.fm-steps li.on { background: var(--rose-bg); font-weight: 700; }
+.fm-hint { margin: 0 0 10px; }
+
+@media (max-width: 720px) {
+  .fm-kpis:has(> :nth-child(3):last-child) { grid-template-columns: 1fr 1fr; }
+  .fm-who { padding: 8px 12px; }
+  .fm-kpis .v-txt { font-size: 18px; }
+  .game-bar p { font-size: 13px; }
+}
+
+/* «دهکده دانش» inside the platform (js/game.js) */
+.game-bar { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.game-wrap { border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); background: #8fd068; }
+.game-frame { display: block; width: 100%; height: max(520px, calc(100dvh - 300px)); border: 0; }
+@media (max-width: 720px) { .game-frame { height: max(480px, calc(100dvh - 250px)); } }

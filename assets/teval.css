@@ -1,0 +1,40 @@
+/* «آینهٔ تدریس»: teacher evaluation (js/teval.js). Tokens come from style.css. */
+.tm-head .card-head { flex-wrap: wrap; gap: 10px; }
+.tm-mirror th[scope="row"] { text-align: start; white-space: nowrap; }
+.tm-mirror td { white-space: nowrap; }
+.tm-rubric { margin-top: 12px; }
+.tm-rubric > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.tm-rubric td { min-width: 150px; line-height: 1.7; vertical-align: top; }
+.tm-goals { list-style: none; margin: 0; padding: 0; }
+.tm-goals li { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.tm-goals li.done { background: var(--ok-bg); border-color: transparent; }
+.tm-goals .spread { flex-wrap: wrap; gap: 6px; }
+.tm-lv { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; }
+.tm-glow, .tm-grow { margin: 4px 0; border-radius: 10px; padding: 6px 10px; }
+.tm-glow { background: var(--ok-bg); } .tm-grow { background: var(--blue-bg); }
+.tm-q { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 40%); gap: 10px; align-items: center; margin-bottom: 8px; font-size: 13.5px; }
+.tm-stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--bg2); }
+.tm-stack i, .tm-legend i { display: block; height: 100%; }
+.a0 { background: var(--ok); } .a1 { background: var(--warn); } .a2 { background: var(--bad); }
+.tm-legend { display: flex; gap: 14px; flex-wrap: wrap; }
+.tm-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.tm-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.tm-h { font-size: 14.5px; margin: 14px 0 6px; }
+.tm-quotes { margin: 0; padding-inline-start: 18px; } .tm-quotes li { margin-bottom: 4px; }
+.tm-filter { gap: 10px 16px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.tm-filter .input { flex: 1; min-width: 200px; }
+.tm-pick { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }
+.tm-pick legend { font-weight: 700; font-size: 14px; padding: 0 4px; }
+.tm-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-opts label { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line2); border-radius: 999px; padding: 4px 12px; min-height: 36px; cursor: pointer; font-size: 13px; }
+.tm-opts label:has(input:checked) { background: var(--brand2); border-color: var(--ring); color: var(--brand-ink); font-weight: 600; }
+.tm-opts input { margin: 0; }
+.tm-desc { margin: 6px 0 0; min-height: 1.5em; }
+.tm-sv { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.tm-desk { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; color: var(--ink); border-inline-start: 4px solid var(--teal); }
+.tm-desk:hover { text-decoration: none; box-shadow: var(--shadow-hover); }
+@media (max-width: 600px) { .tm-q { grid-template-columns: 1fr; gap: 4px; } }
+.tag.violet { background: var(--violet-bg); color: var(--violet); } .tag.rose { background: var(--rose-bg); color: var(--rose); } .tag.blue { background: var(--blue-bg); color: var(--blue); }
+
+/* The «only unvisited» filter: a checkbox big enough to tap. */
+#tm-only { width: 18px; height: 18px; }

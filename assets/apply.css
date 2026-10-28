@@ -1,0 +1,66 @@
+/* Applicant portal (apply.html) */
+.apply-page { background: var(--bg); min-height: 100vh; }
+.ap-top { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+.ap-top-in { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ap-brand { display: flex; align-items: center; gap: 10px; }
+.ap-brand b { font-size: 15px; }
+.ap-logo { height: 40px; width: auto; }
+.ap-who { display: flex; align-items: center; gap: 10px; }
+.ap-main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 96px; }
+.ap-signin { max-width: 460px; margin: 32px auto; padding: 24px; }
+.ap-signin h1 { margin-top: 0; font-size: 21px; }
+.ap-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.ap-head h1 { font-size: 20px; margin: 0 0 6px; }
+.ap-prog { display: flex; align-items: center; gap: 8px; }
+.ap-prog .bar { display: block; width: 200px; max-width: 50vw; height: 12px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.ap-prog i { display: block; height: 100%; border-radius: 99px; background: var(--brand); }
+.ap-prog b { font-size: 13px; }
+.ap-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ap-steps { position: sticky; top: 76px; }
+.ap-steps ol { list-style: none; margin: 0; padding: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+.ap-steps button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 10px; background: none; color: var(--ink2); font: inherit; font-size: 13.5px; text-align: right; cursor: pointer; min-height: 40px; }
+.ap-steps button:hover { background: var(--bg); color: var(--ink); }
+.ap-steps button.on { background: var(--brand2, var(--bg)); color: var(--ink); font-weight: 700; }
+.ap-steps .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); font-size: 12px; flex-shrink: 0; }
+.ap-steps button.ok .n { background: var(--ok, #1a7f4b); border-color: transparent; color: #fff; }
+.ap-steps button.on .n { border-color: var(--brand); }
+.ap-body { margin: 0; padding: 20px; }
+.ap-body h2 { margin-top: 0; }
+.ap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0 14px; }
+.ap-grid .wide { grid-column: 1 / -1; }
+.req { color: var(--bad); }
+.ap-rows { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.ap-rows li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; margin: 0; flex-wrap: wrap; }
+.ap-add { border-style: dashed; }
+.ap-file-has { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ap-thumb { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.ap-bar { position: fixed; bottom: 0; inset-inline: 0; z-index: 20; display: flex; justify-content: center; gap: 10px; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.05); }
+.ap-bar .btn { min-width: 120px; }
+.ap-miss { margin: 6px 0 0; padding-inline-start: 18px; }
+button.link { border: 0; background: none; padding: 4px 2px; min-height: 24px; min-width: 24px; display: inline-block; color: var(--brand); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.ok-note { border-color: var(--ok, #1a7f4b); }
+.ap-review { margin-top: 12px; }
+.ap-sec h2 { font-size: 16px; margin-top: 0; }
+.ap-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; margin: 0; }
+.ap-dl .wide { grid-column: 1 / -1; }
+.ap-dl dt { font-size: 12px; color: var(--ink3); }
+.ap-dl dd { margin: 2px 0 0; }
+.ap-table th, .ap-table td { white-space: nowrap; font-size: 13px; }
+.ap-sent { padding: 24px; }
+@media (max-width: 820px) {
+  .ap-layout { grid-template-columns: minmax(0, 1fr); }
+  .ap-steps { position: static; }
+  .ap-steps ol { display: flex; overflow-x: auto; gap: 4px; }
+  .ap-steps li { flex-shrink: 0; }
+  .ap-steps button span:not(.n) { white-space: nowrap; }
+  .ap-bar .btn { min-width: 0; flex: 1; }
+}
+.ap-miss li { margin: 4px 0; line-height: 2; }
+/* Photo requirements on the documents step */
+.ap-notes { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; }
+.ap-notes summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.ap-notes ul { margin: 6px 0 2px; padding-inline-start: 20px; line-height: 1.9; font-size: 14px; }
+
+/* Way back to the school's site (site.html). */
+.ap-top .ap-back { flex: none; min-height: 44px; }
+.ap-brand { margin-inline-end: auto; }
