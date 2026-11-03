@@ -375,3 +375,8 @@ button.lv-timer { cursor: pointer; }
 .lv-rest span { grid-column: 1; grid-row: 2; font-size: 13px; color: var(--rt2); }
 .lv-rest i { grid-column: 2; grid-row: 1 / 3; font-style: normal; font-size: 22px; font-weight: 700; color: var(--good); }
 .lv-rest .lv-ib { grid-column: 3; grid-row: 1 / 3; }
+
+/* «اجازهٔ صحبت» next to a raised hand in the teacher's users list */
+.lv-room .lv-give { display: block; margin-top: 4px; min-height: 30px; padding: 2px 12px; border: 1px solid var(--good); border-radius: 8px; background: var(--good-bg); color: var(--good-ink); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.lv-room .lv-give:hover { background: color-mix(in srgb, var(--good) 28%, transparent); }
+.lv-room .lv-give:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -391,13 +391,13 @@ const LiveClass = (() => {
     if (host) {
       if (x.status !== 'live') { x.status = 'live'; x.startedAt = x.startedAt || nowIso(); }
       x.hostAt = Date.now();
-      x.cfg = { policy: 'accept', joinMuted: true, ok: [], kicked: [], ...(x.cfg || {}) }; x.cfg.locks = { cam: false, mic: false, chat: false, notes: false, users: false, ...(x.cfg.locks || {}) };
+      x.cfg = { policy: 'accept', joinMuted: true, askTalk: true, ok: [], kicked: [], ...(x.cfg || {}) }; x.cfg.locks = { cam: false, mic: false, chat: false, notes: false, users: false, ...(x.cfg.locks || {}) };
       x.att = x.att || {}; x.stats = x.stats || {}; x.polls = x.polls || []; x.recs = x.recs || []; x.chat = x.chat || [];
       main.decks = decksOf(x); main.chat = x.chat;
       await Promise.all(main.decks.map(async d => { if (d.pages.some(p => p.bg)) { const bgs = await IDB.get(x.id + ':' + d.id) || []; d.pages.forEach((p, i) => { p.bg = bgs[i] || null; }); } }));
       o.save();
     }
-    R = { c, o, x, host, me, cfg: host ? x.cfg : { locks: {}, joinMuted: true }, main, sp: main, room: null, view: 'board', mainView: 'board', ext: null, notes: host ? x.notes || '' : '', notesBy: '',
+    R = { c, o, x, host, me, cfg: host ? x.cfg : { locks: {}, joinMuted: true, askTalk: true }, main, sp: main, room: null, view: 'board', mainView: 'board', ext: null, notes: host ? x.notes || '' : '', notesBy: '',
       poll: host ? x.polls.find(p => !p.closed) || null : null, myVote: {}, pf: null,
       people: new Map(), pending: new Map(), kicked: new Set(host ? x.cfg.kicked : []), allWrite: false, writers: new Set(), presenter: null,
       hostName: host ? me.name : 'معلم', hostAway: false, hostReact: null, away: false, hand: false, self: null,
@@ -681,7 +681,8 @@ const LiveClass = (() => {
   function gearMenu(b) {
     const c = R.cfg;
     menu(b, [{ ic: IC.micOff, label: 'پیوستن کاربران با میکروفون خاموش', check: c.joinMuted, run: () => { c.joinMuted = !c.joinMuted; cfgChanged(); } },
-      { ic: IC.micOff, label: 'خاموش کردن میکروفون همه به جز ارائه‌دهنده', run: () => { send({ t: 'mute', all: true, except: R.presenter }); toast('میکروفون همه خاموش شد.'); } },
+      { ic: IC.hand, label: 'صحبت دانش‌آموزان فقط با اجازهٔ معلم', check: c.askTalk, run: () => { c.askTalk = !c.askTalk; cfgChanged(); } },
+      { ic: IC.micOff, label: 'خاموش کردن میکروفون همه به جز ارائه‌دهنده', run: () => { send({ t: 'mute', all: true, except: R.presenter }); R.people.forEach((v, k) => { if (k !== R.presenter) v.talk = false; }); sendPeople(); renderSide('users'); toast('میکروفون همه خاموش شد.'); } },
       { ic: IC.lock, label: 'قفل کردن کاربران', run: locksModal }, { ic: IC.guest, label: 'سیاست پذیرش مهمان', run: policyModal },
       { ic: IC.dl, label: 'ذخیرهٔ نام‌های کاربری', run: () => namesCsv(R.x, R.o) },
       { ic: IC.clear, label: 'پاک کردن همهٔ واکنش‌ها', run: () => { R.people.forEach(v => { v.react = null; v.hand = 0; }); R.hostReact = null; sendPeople(); renderSide('users'); toast('واکنش‌ها و دست‌ها پاک شد.'); } }, '-',
@@ -692,12 +693,18 @@ const LiveClass = (() => {
     const v = R.people.get(key); if (!v) return;
     menu(b, [{ ic: IC.present, label: R.presenter === key ? 'پس گرفتن ارائه' : 'ارائه‌دهنده کن', run: () => { R.presenter = R.presenter === key ? null : key; sendPeople(); renderTools(); renderNav(); renderSide('users'); } },
       { ic: IC.pen, label: 'اجازهٔ نوشتن روی تخته', check: R.writers.has(v.sid), run: () => { R.writers.has(v.sid) ? R.writers.delete(v.sid) : R.writers.add(v.sid); sendPeople(); renderSide('users'); } },
-      v.mic && { ic: IC.micOff, label: 'خاموش کردن میکروفون', run: () => send({ t: 'mute', to: key }) },
+      R.cfg.askTalk && { ic: IC.mic, label: 'اجازهٔ صحبت', check: !!v.talk, run: () => giveTalk(key, !v.talk) },
+      v.mic && { ic: IC.micOff, label: 'خاموش کردن میکروفون', run: () => { v.talk = false; send({ t: 'mute', to: key }); sendPeople(); } },
       v.hand && { ic: IC.hand, label: 'پایین آوردن دست', run: () => { v.hand = 0; sendPeople(); renderSide('users'); } }, '-',
       { ic: IC.userx, label: 'بیرون کردن از کلاس', danger: true, run: async () => {
         if (!await UI.ask('بیرون کردن از کلاس', `${v.name} از این جلسه بیرون شود؟ تا پایان جلسه نمی‌تواند برگردد.`, 'بیرون کن')) return;
         R.kicked.add(v.sid); R.cfg.kicked = [...R.kicked]; send({ t: 'kick', to: key }); depart(key); sendPeople(); renderSide('users'); renderTiles(); saveSoon(); } }],
       { head: `<div class="lv-mhead"><b>${esc(v.name)}</b></div>` });
+  }
+  // Talking needs the teacher's go-ahead: granting lowers the hand and turns the student's mic on; taking it back mutes it.
+  function giveTalk(key, on) {
+    const v = R.people.get(key); if (!v) return; v.talk = on; if (on) v.hand = 0;
+    send({ t: 'talk', to: key, on }); sendPeople(); renderSide('users');
   }
   function chatMenu(b) {
     const sp = R.sp, lines = () => sp.chat.map(m => m.sys ? `— ${m.text}` : `[${tm(m.at)}] ${m.who}: ${m.text}`).join('\r\n');
@@ -721,7 +728,7 @@ const LiveClass = (() => {
 
   /* ---- modals of the room ---- */
   const cfgChanged = () => { saveSoon(); send({ t: 'cfg', cfg: pubCfg() }); renderSide(); };
-  const pubCfg = () => ({ locks: R.cfg.locks, joinMuted: R.cfg.joinMuted });
+  const pubCfg = () => ({ locks: R.cfg.locks, joinMuted: R.cfg.joinMuted, askTalk: R.cfg.askTalk });
   function locksModal() {
     modal(`<h2>قفل کردن کاربران</h2><fieldset class="lv-fs"><legend>بستن برای دانش‌آموزان</legend>${LOCKS.map(([k, l]) => `<label class="lv-chk"><input type="checkbox" data-k="${k}" ${R.cfg.locks[k] ? 'checked' : ''}> ${l}</label>`).join('')}</fieldset>
       <div class="row" style="margin-top:16px"><button class="btn primary" id="lv-lok">اعمال</button><button class="btn" data-close>انصراف</button></div>`, root => {
@@ -925,6 +932,7 @@ const LiveClass = (() => {
   async function toggleMic(force) {
     if (R.mic || force === false) { if (!R.mic) return; R.mic.getTracks().forEach(t => t.stop()); R.mic = null; }
     else { if (!R.host && R.cfg.locks.mic) return toast('معلم میکروفون دانش‌آموزان را بسته است.');
+      if (!R.host && R.cfg.askTalk && !R.mayTalk) { if (!R.hand) setHand(true); toast('برای صحبت باید معلم اجازه بدهد؛ دستت بالاست و با اجازهٔ معلم میکروفونت روشن می‌شود.'); return; }
       try { R.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { return toast('میکروفون در دسترس نیست یا اجازه داده نشد.'); }
       R.recMix?.add(R.mic); }
     hear(R.me.key, R.mic); fbState('mic', !!R.mic, IC.mic, IC.micOff); mediaOut();
@@ -943,16 +951,31 @@ const LiveClass = (() => {
   }
   const mediaOut = () => { renderTiles(); if (R.host) { R.people.forEach((_, k) => offer(k)); sendPeople(); } else upOffer(); if (R.view === 'cam' || R.view === 'screen') setView(R.view); };
   const peer = k => { if (!R.peers.has(k)) R.peers.set(k, {}); return R.peers.get(k); };
-  // Host → each student: the camera with the microphone in one stream, the screen in another.
+  // Students hear each other through the teacher's tab: each student gets one mixed track of everyone else's microphone
+  // (never their own, so no echo); a voice joins or leaves the mix without a new connection.
+  function bus() { const B = R.bus || (R.bus = { ac: new AudioContext(), dst: new Map(), src: new Map() }); B.ac.resume?.().catch(() => {}); return B; }
+  function busOut(key) {
+    const B = bus(); let d = B.dst.get(key);
+    if (!d) { d = B.ac.createMediaStreamDestination(); B.dst.set(key, d); B.src.forEach((s, k) => k !== key && s.connect(d)); }
+    return d.stream;
+  }
+  function busIn(key, stream) {
+    if (!R.bus && !stream) return; const B = bus(), old = B.src.get(key); if (old) { try { old.disconnect(); } catch { /* gone */ } B.src.delete(key); }
+    const tr = stream?.getAudioTracks().find(t => t.readyState === 'live'); if (!tr) return;
+    try { const s = B.ac.createMediaStreamSource(new MediaStream([tr])); B.src.set(key, s); B.dst.forEach((d, k) => k !== key && s.connect(d)); } catch { /* no audio */ }
+  }
+  function busDrop(key) { busIn(key, null); const d = R.bus?.dst.get(key); if (!d) return; R.bus.src.forEach(s => { try { s.disconnect(d); } catch { /* not linked */ } }); R.bus.dst.delete(key); }
+  // Host → each student: the camera with the microphone in one stream, the screen in another, the class's voices in a third.
   async function offer(key) {
     const p = peer(key); p.pc?.close(); p.pc = null;
     const t = []; if (R.cam) t.push([R.cam.getVideoTracks()[0], 'cam']); if (R.mic) t.push([R.mic.getAudioTracks()[0], 'cam']); if (R.screen) t.push([R.screen.getVideoTracks()[0], 'screen']);
-    if (!t.filter(([x]) => x).length) return send({ t: 'nomedia', to: key });
-    const pc = p.pc = new RTCPeerConnection(), cm = new MediaStream(), sc = new MediaStream();
-    t.forEach(([tr, k]) => tr && pc.addTrack(tr, k === 'cam' ? cm : sc));
+    let mx = null; try { mx = busOut(key).getAudioTracks()[0]; } catch { /* no mixing */ }
+    if (!t.filter(([x]) => x).length && !mx) return send({ t: 'nomedia', to: key });
+    const pc = p.pc = new RTCPeerConnection(), cm = new MediaStream(), sc = new MediaStream(), mm = new MediaStream();
+    t.forEach(([tr, k]) => tr && pc.addTrack(tr, k === 'cam' ? cm : sc)); if (mx) pc.addTrack(mx, mm);
     pc.onicecandidate = e => e.candidate && send({ t: 'ice', to: key, c: e.candidate.toJSON() });
     await pc.setLocalDescription(await pc.createOffer());
-    send({ t: 'offer', to: key, sdp: pc.localDescription.toJSON(), ids: { cam: cm.id, screen: sc.id } });
+    send({ t: 'offer', to: key, sdp: pc.localDescription.toJSON(), ids: { cam: cm.id, screen: sc.id, mix: mm.id } });
   }
   // Student → host: the student's own microphone and camera.
   async function upOffer() {
@@ -1048,7 +1071,7 @@ const LiveClass = (() => {
   const userRow = (v, opts = {}) => {
     const isPres = v.key === R.presenter || (v.key === 'host' && !R.presenter), canW = v.sid && (R.allWrite || R.writers.has(v.sid));
     return `<li class="lv-p-on ${v.away ? 'away' : ''} ${R.talk?.has(v.key) ? 'talk' : ''}" data-key="${esc(v.key)}"><span class="lv-av2" aria-hidden="true">${face(stuOf(v.sid), v.name)}${isPres ? `<em>${IC.present}</em>` : ''}</span>
-      <span class="lv-pn">${esc(v.name)}${opts.role ? ` <small>${opts.role}</small>` : ''}${isPres ? ' <small>ارائه‌دهنده</small>' : ''}${v.away ? ' <small>دور از کلاس</small>' : ''}</span>
+      <span class="lv-pn">${esc(v.name)}${opts.role ? ` <small>${opts.role}</small>` : ''}${isPres ? ' <small>ارائه‌دهنده</small>' : ''}${v.away ? ' <small>دور از کلاس</small>' : ''}${opts.menu && R.cfg.askTalk && v.hand && !v.talk ? `<button type="button" class="lv-give" data-lv="give-talk" data-key="${esc(v.key)}">اجازهٔ صحبت</button>` : ''}</span>
       <span class="lv-pst">${v.hand ? `<span class="lv-ihand" title="دست بالا">${IC.hand}</span>` : ''}${v.react ? `<span class="lv-emo" title="واکنش">${v.react}</span>` : ''}${canW ? `<span title="اجازهٔ نوشتن">${IC.pen}</span>` : ''}${v.cam ? `<span title="دوربین روشن">${IC.cam}</span>` : ''}${v.mic ? `<span title="میکروفون روشن">${IC.mic}</span>` : `<span class="dim" title="میکروفون خاموش">${IC.micOff}</span>`}</span>
       ${opts.menu ? `<button type="button" class="lv-ib" data-lv="user-more" data-key="${esc(v.key)}" aria-label="کارهای ${esc(v.name)}" aria-haspopup="true" aria-expanded="false">${IC.more}</button>` : ''}</li>`;
   };
@@ -1164,7 +1187,7 @@ const LiveClass = (() => {
   function setAway(a) { R.away = a; if (R.host) { sendPeople(); renderSide('users'); } else send({ t: 'status', from: R.me.key, away: a }); toast(a ? 'وضعیت شما: دور از کلاس' : 'وضعیت شما: حاضر'); }
 
   /* ---- people (host) ---- */
-  const peopleMsg = () => ({ t: 'people', list: [...R.people.values()].map(({ key, sid, name, hand, react, away, mic, cam }) => ({ key, sid, name, hand, react, away, mic, cam })),
+  const peopleMsg = () => ({ t: 'people', list: [...R.people.values()].map(({ key, sid, name, hand, react, away, mic, cam, talk }) => ({ key, sid, name, hand, react, away, mic, cam, talk: !!talk })),
     host: { name: R.me.name, away: R.away, react: R.hostReact, mic: !!R.mic, cam: !!R.cam }, presenter: R.presenter, allWrite: R.allWrite, writers: [...R.writers] });
   const sendPeople = () => { clearTimeout(R.pT); R.pT = setTimeout(() => R && send(peopleMsg()), 60); badges(); };
   function arrive(v) {
@@ -1173,7 +1196,7 @@ const LiveClass = (() => {
   }
   function depart(key) {
     const v = R.people.get(key); if (!v) return; R.people.delete(key);
-    const p = R.peers.get(key); p?.pc?.close(); p?.up?.close(); R.peers.delete(key); hear(key, null);
+    const p = R.peers.get(key); p?.pc?.close(); p?.up?.close(); R.peers.delete(key); hear(key, null); busDrop(key);
     if (R.presenter === key) R.presenter = null;
     if (v.sid && R.x.att[v.sid]?.since) { const a = R.x.att[v.sid]; a.mins = (a.mins || 0) + Math.max(1, Math.round((Date.now() - a.since) / 60000)); a.last = nowIso(); delete a.since; saveSoon(); }
   }
@@ -1263,12 +1286,12 @@ const LiveClass = (() => {
     ice(m) { if (m.from) addIce(R.peers.get(m.from)?.pc, m.c); },
     async 'up-offer'(m) {
       if (!R.people.has(m.from)) return; const p = peer(m.from); p.up?.close(); const pc = p.up = new RTCPeerConnection();
-      pc.ontrack = e => { p.stream = e.streams[0]; R.recMix?.add(p.stream); hear(m.from, p.stream); renderTiles(); };
+      pc.ontrack = e => { p.stream = e.streams[0]; R.recMix?.add(p.stream); hear(m.from, p.stream); busIn(m.from, p.stream); renderTiles(); };
       pc.onicecandidate = e => e.candidate && send({ t: 'up-ice', to: m.from, c: e.candidate.toJSON() });
       await pc.setRemoteDescription(m.sdp); flushIce(pc); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'up-answer', to: m.from, sdp: pc.localDescription.toJSON() });
     },
     'up-ice'(m) { if (m.from) addIce(R.peers.get(m.from)?.up, m.c); },
-    'up-none'(m) { hear(m.from, null); const p = R.peers.get(m.from); if (p) { p.up?.close(); p.up = null; p.stream = null; renderTiles(); } },
+    'up-none'(m) { hear(m.from, null); busIn(m.from, null); const p = R.peers.get(m.from); if (p) { p.up?.close(); p.up = null; p.stream = null; renderTiles(); } },
     media(m) { const v = R.people.get(m.from); if (v) { v.mic = m.mic; v.cam = m.cam; sendPeople(); renderSide('users'); } },
     hand(m) { const v = R.people.get(m.from); if (!v) return; v.hand = m.up ? Date.now() : 0; if (m.up) { if (v.sid) st(v.sid).hands++; beep(700); toast(`${v.name} دستش را بالا برد.`); } sendPeople(); renderSide('users'); },
     react(m) { const v = R.people.get(m.from); if (!v) return; v.react = m.e; v.reactAt = Date.now(); if (m.e && v.sid) st(v.sid).reacts++; sendPeople(); renderSide('users'); },
@@ -1294,14 +1317,14 @@ const LiveClass = (() => {
       R.mainView = m.view; if (!R.room) setView(m.view);
       const rr = $r('.lv-rec-on'); if (rr) rr.hidden = !R.recOn;
       applyLocks(); renderAll(); if (R.poll && !R.poll.closed && R.myVote[R.poll.id] == null) pollPop(R.poll);
-      if (R.mic || R.cam) upOffer(); else if (!R.cfg.joinMuted && !R.cfg.locks.mic && !R.triedMic) { R.triedMic = true; toggleMic(); }
+      if (R.mic || R.cam) upOffer(); else if (!R.cfg.joinMuted && !R.cfg.locks.mic && !R.cfg.askTalk && !R.triedMic) { R.triedMic = true; toggleMic(); }
     },
     people(m) {
       R.people = new Map(m.list.filter(v => v.key !== R.me.key).map(v => [v.key, v])); R.self = m.list.find(v => v.key === R.me.key) || null;
       R.hostName = m.host.name; R.hostAway = m.host.away; R.hostReact = m.host.react; R.hostMic = m.host.mic; R.hostCam = m.host.cam;
       const pr = R.presenter !== m.presenter || R.allWrite !== m.allWrite || R.writers.has(R.me.sid) !== m.writers.includes(R.me.sid);
       R.presenter = m.presenter; R.allWrite = m.allWrite; R.writers = new Set(m.writers);
-      if (R.self) { R.hand = !!R.self.hand; fbState('hand', R.hand); }
+      if (R.self) { R.hand = !!R.self.hand; fbState('hand', R.hand); R.mayTalk = !!R.self.talk; }
       if (pr) { renderTools(); renderNav(); if (!mayDraw()) { R.cur = null; R.sel = null; } }
       renderSide('users'); badges();
     },
@@ -1317,7 +1340,7 @@ const LiveClass = (() => {
     cfg(m) { R.cfg = m.cfg; applyLocks(); },
     async offer(m) {
       R.pc?.close(); R.rCam = R.rScreen = null; const pc = R.pc = new RTCPeerConnection();
-      pc.ontrack = e => { const s = e.streams[0]; if (s.id === m.ids.screen) R.rScreen = s; else R.rCam = s; renderTiles(); if (R.view === 'screen' || R.view === 'cam') setView(R.view); };
+      pc.ontrack = e => { const s = e.streams[0]; if (s.id === m.ids.mix) { const a = R.mixEl || (R.mixEl = new Audio()); a.srcObject = s; a.play().catch(() => {}); return; } if (s.id === m.ids.screen) R.rScreen = s; else R.rCam = s; renderTiles(); if (R.view === 'screen' || R.view === 'cam') setView(R.view); };
       pc.onicecandidate = e => e.candidate && send({ t: 'ice', from: R.me.key, c: e.candidate.toJSON() });
       await pc.setRemoteDescription(m.sdp); flushIce(pc); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'answer', from: R.me.key, sdp: pc.localDescription.toJSON() });
     },
@@ -1325,7 +1348,8 @@ const LiveClass = (() => {
     nomedia() { R.pc?.close(); R.pc = null; R.rCam = R.rScreen = null; renderTiles(); if (R.view === 'screen' || R.view === 'cam') setView(R.view); },
     'up-answer'(m) { R.up?.setRemoteDescription(m.sdp).then(() => flushIce(R.up)).catch(() => {}); },
     'up-ice'(m) { if (m.to) addIce(R.up, m.c); },
-    mute(m) { if (m.all && m.except === R.me.key) return; if (R.mic) { toggleMic(false); toast('معلم میکروفون شما را خاموش کرد.'); } },
+    talk(m) { R.mayTalk = m.on; beep(m.on ? 880 : 520); if (m.on) { if (!R.mic) toggleMic().then(() => R?.mic && toast('معلم اجازهٔ صحبت داد؛ میکروفونت روشن است.')); } else { if (R.mic) toggleMic(false); toast('اجازهٔ صحبت تمام شد.'); } },
+    mute(m) { if (m.all && m.except === R.me.key) return; R.mayTalk = false; if (R.mic) { toggleMic(false); toast('معلم میکروفون شما را خاموش کرد.'); } },
     timer(m) { R.timer = m.timer; tick(); },
     notes(m) { setNotes(m.text, m.by); },
     rec(m) { R.recOn = m.on; const rr = $r('.lv-rec-on'); if (rr) rr.hidden = !m.on; },
@@ -1348,7 +1372,7 @@ const LiveClass = (() => {
   function waitMsg(t) { const w = $r('.lv-wait'); if (!w) return; w.hidden = !t; if (t) w.querySelector('b').textContent = t; }
   function out(title, text) { const o = R.o; leave(false); o.render(); modal(`<h2>${title}</h2><p>${text}</p><div class="row" style="margin-top:14px"><button class="btn primary" data-close>باشه</button></div>`); }
   function applyLocks() {
-    const l = R.cfg.locks || {}; if (l.mic && R.mic) toggleMic(false); if (l.cam && R.cam) toggleCam(false);
+    const l = R.cfg.locks || {}; if (l.mic && R.mic) toggleMic(false); if (!R.host && R.cfg.askTalk && !R.mayTalk && R.mic) toggleMic(false); if (l.cam && R.cam) toggleCam(false);
     ['mic', 'cam'].forEach(k => { const b = $r(`.lv-ctrls [data-lv="${k}"]`); if (b) { b.classList.toggle('locked', !!l[k]); b.title = l[k] ? 'معلم بسته است' : k === 'mic' ? 'میکروفون' : 'دوربین'; } });
     renderSide();
   }
@@ -1364,7 +1388,7 @@ const LiveClass = (() => {
     multi: () => { R.allWrite = !R.allWrite; sendPeople(); renderTools(); renderSide('users'); toast(R.allWrite ? 'تختهٔ چندکاربره: همه می‌توانند بنویسند.' : 'نوشتن دانش‌آموزان بسته شد.'); },
     'pg-prev': () => goPage(R.sp.deck, R.sp.page - 1), 'pg-next': () => goPage(R.sp.deck, R.sp.page + 1), 'pg-add': () => addPage(),
     'zoom-in': () => zoom(R.sp.vp.z + .25), 'zoom-out': () => zoom(R.sp.vp.z - .25), fit: () => zoom(1), 'pres-mgr': () => presModal(),
-    'chat-more': b => chatMenu(b), 'users-gear': b => gearMenu(b), 'user-more': b => userMenu(b, b.dataset.key), 'notes-dl': () => download(`یادداشت-${R.x.title}.txt`, R.notes),
+    'chat-more': b => chatMenu(b), 'users-gear': b => gearMenu(b), 'user-more': b => userMenu(b, b.dataset.key), 'give-talk': b => giveTalk(b.dataset.key, true), 'notes-dl': () => download(`یادداشت-${R.x.title}.txt`, R.notes),
     admit: b => { const v = R.pending.get(b.dataset.key); if (v) admit(v); }, 'admit-all': () => [...R.pending.values()].forEach(admit),
     deny: b => { R.pending.delete(b.dataset.key); send({ t: 'denied', to: b.dataset.key }); renderSide('users'); },
     'br-go': b => visitRoom(+b.dataset.k), 'br-back': () => backMain(),
@@ -1443,7 +1467,7 @@ const LiveClass = (() => {
     [R.cam, R.mic, R.screen].forEach(s => s?.getTracks().forEach(t => t.stop()));
     R.peers.forEach(p => { p.pc?.close(); p.up?.close(); }); R.pc?.close(); R.up?.close();
     R.br?.rooms.forEach(r => r.chan.close()); R.room?.chan.close();
-    clearInterval(R.tickT); clearInterval(R.vadT); R.vad?.ac?.close().catch(() => {}); clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
+    clearInterval(R.tickT); clearInterval(R.vadT); R.vad?.ac?.close().catch(() => {}); R.bus?.ac.close().catch(() => {}); if (R.mixEl) { R.mixEl.pause(); R.mixEl.srcObject = null; } clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
     removeEventListener('beforeunload', unload); document.removeEventListener('keydown', onKey);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     if (R.title0) document.title = R.title0;
