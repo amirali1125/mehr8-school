@@ -112,6 +112,21 @@ const LiveClass = (() => {
       ...l.filter(s => s.status === 'done').sort((a, b) => (b.date + b.from).localeCompare(a.date + a.from))]; };
   // Older sessions kept the board as `boards: [[stroke]]`.
   const decksOf = x => x.decks || [{ id: 'wb', name: 'تختهٔ سفید', pages: (x.boards?.length ? x.boards : [[]]).map(s => ({ s: s.map(k => ({ id: k.id || rid(), ...k })) })) }];
+  // A session is on air only while the teacher's room is open: it stamps `hostAt` every half minute and clears it on leaving.
+  // One left open (tab closed, temporary exit) shows as unfinished; one left from an earlier day is closed by itself.
+  const onAir = x => x.status === 'live' && !!x.hostAt && Date.now() - x.hostAt < 90000;
+  const paused = x => x.status === 'live' && !onAir(x);
+  function finish(x) {
+    const at = x.hostAt || x.lastAt || (x.startedAt ? +new Date(x.startedAt) + 45 * 60000 : Date.now());
+    Object.values(x.att || {}).forEach(a => { if (a.since) { a.mins = (a.mins || 0) + Math.max(1, Math.round((at - a.since) / 60000)); delete a.since; } });
+    x.status = 'done'; x.endedAt = new Date(Math.min(Date.now(), Math.max(at, +new Date(x.startedAt || at)))).toISOString(); x.hostAt = 0;
+    (x.polls || []).forEach(p => { p.closed = true; });
+  }
+  function sweep(c, o) {
+    let ch = false;
+    live(c).sessions.forEach(x => { if (paused(x) && x.date < today() && !(R && R.x === x)) { finish(x); ch = true; } });
+    if (ch) o.save();
+  }
   const blank = rec => ({ id: D.uid('lv'), ...rec, status: 'planned', att: {}, chat: [], polls: [], recs: [], stats: {}, notes: '' });
 
   // Two past sessions and one for today in the demo teacher's subject, so the tab and the report have something to show.
@@ -136,27 +151,30 @@ const LiveClass = (() => {
 
   // The course page's card: the class going on now, or the next one, and the way in.
   function card(c, o, s) {
-    seed(c, o);
+    seed(c, o); sweep(c, o);
     const l = sorted(c), cur = l.find(x => x.status === 'live'), next = l.find(x => x.status === 'planned' && (!s || !x.cls || x.cls === s.cls));
     const done = l.filter(x => x.status === 'done' && (!s || !x.cls || x.cls === s.cls));
     const target = cur && (!s || !cur.cls || cur.cls === s.cls) ? cur : next;
     const canJoin = target && (target.status === 'live' || target.date === today());
     const when = x => `${fdate(x.date)}، ساعت ${dg(x.from)}${x.to ? ` تا ${dg(x.to)}` : ''}`;
     const mine = s ? done.filter(x => x.att?.[s.id]).length : 0, recs = done.filter(x => (x.recs || []).length);
-    return `<div class="card lv-card ${target?.status === 'live' ? 'is-live' : ''}"><div class="card-head"><div class="row"><span class="tile lv-ic">${IC.cam}</span><div><h2 style="margin:0">کلاس آنلاین</h2>
-        <span class="small muted">${target ? `${target.status === 'live' ? '<b class="lv-dot">در حال برگزاری</b> · ' : ''}${esc(target.title)} · ${when(target)}` : 'جلسه‌ای در برنامه نیست.'}</span></div></div>
-      <div class="row">${target ? `<button type="button" class="btn ${canJoin ? 'primary' : ''}" data-act="lv-join" data-id="${target.id}" ${canJoin ? '' : 'disabled'}>${s ? 'ورود به کلاس' : target.status === 'live' ? 'بازگشت به کلاس' : 'شروع کلاس'}</button>` : ''}
+    const air = target && onAir(target), half = target && paused(target);
+    const state = air ? '<b class="lv-dot">در حال برگزاری</b> · ' : half ? `<b class="lv-half">${s ? 'منتظر ورود معلم' : 'نیمه‌تمام'}</b> · ` : '';
+    return `<div class="card lv-card ${air ? 'is-live' : ''}"><div class="card-head"><div class="row"><span class="tile lv-ic">${IC.cam}</span><div><h2 style="margin:0">کلاس آنلاین</h2>
+        <span class="small muted">${target ? `${state}${esc(target.title)} · ${when(target)}` : 'جلسه‌ای در برنامه نیست.'}</span></div></div>
+      <div class="row">${target ? `<button type="button" class="btn ${canJoin ? 'primary' : ''}" data-act="lv-join" data-id="${target.id}" ${canJoin ? '' : 'disabled'}>${s ? 'ورود به کلاس' : air ? 'بازگشت به کلاس' : half ? 'ادامهٔ کلاس' : 'شروع کلاس'}</button>` : ''}
+        ${half && !s && !o.ro ? `<button type="button" class="btn" data-act="lv-finish" data-id="${target.id}">پایان جلسه</button>` : ''}
         ${!s && !o.ro ? '<button type="button" class="btn" data-act="lv-now">شروع فوری</button>' : ''}${recs.length ? `<button type="button" class="btn" data-act="lv-recs">${IC.play} ضبط‌ها (${fa(recs.reduce((a, x) => a + x.recs.length, 0))})</button>` : ''}${c.link ? `<a class="btn" href="${esc(c.link)}" target="_blank" rel="noopener">${IC.link} سرور مدرسه</a>` : ''}</div></div>
       ${s && done.length ? `<p class="small muted" style="margin:0">در ${fa(mine)} جلسه از ${fa(done.length)} جلسهٔ برگزارشده حاضر بوده‌ای.</p>` : ''}</div>`;
   }
 
   // The «کلاس آنلاین» tab: sessions ahead, the live one, past ones with their reports, dashboards and recordings.
   function tab(c, o) {
-    seed(c, o);
+    seed(c, o); sweep(c, o);
     const l = sorted(c), up = l.filter(x => x.status !== 'done'), past = l.filter(x => x.status === 'done');
-    const row = x => `<tr class="${x.status === 'live' ? 'lv-row-live' : ''}"><td><b>${esc(x.title)}</b>${x.status === 'live' ? ' <span class="tag bad">زنده</span>' : x.date === today() ? ' <span class="tag warn">امروز</span>' : ''}</td>
+    const row = x => `<tr class="${onAir(x) ? 'lv-row-live' : ''}"><td><b>${esc(x.title)}</b>${onAir(x) ? ' <span class="tag bad">زنده</span>' : paused(x) ? ' <span class="tag warn">نیمه‌تمام</span>' : x.date === today() ? ' <span class="tag warn">امروز</span>' : ''}</td>
       <td>${esc(fdate(x.date))}</td><td class="num">${dg(x.from)}${x.to ? `–${dg(x.to)}` : ''}</td><td>${esc(clsName(o, x.cls))}</td>
-      <td class="lv-acts">${o.ro ? '' : `<button type="button" class="btn sm primary" data-act="lv-join" data-id="${x.id}">${x.status === 'live' ? 'بازگشت به کلاس' : 'شروع'}</button>
+      <td class="lv-acts">${o.ro ? '' : `<button type="button" class="btn sm primary" data-act="lv-join" data-id="${x.id}">${onAir(x) ? 'بازگشت به کلاس' : paused(x) ? 'ادامه' : 'شروع'}</button>${paused(x) ? `<button type="button" class="btn sm" data-act="lv-finish" data-id="${x.id}">پایان جلسه</button>` : ''}
         <button type="button" class="btn sm" data-act="lv-edit" data-id="${x.id}">ویرایش</button><button type="button" class="btn sm danger" data-act="lv-del" data-id="${x.id}" aria-label="حذف ${esc(x.title)}">حذف</button>`}</td></tr>`;
     const prow = x => { const r = roster(o, x).length, nr = (x.recs || []).length;
       return `<tr><td><b>${esc(x.title)}</b></td><td>${esc(fdate(x.date))}</td><td class="num">${fa(mins(x))} دقیقه</td><td class="num">${fa(present(x))} از ${fa(r)}</td>
@@ -202,6 +220,9 @@ const LiveClass = (() => {
       return `<div class="lv-bar ${ok ? 'ok' : ''}"><span>${esc(op)}${ok ? ' ✓' : ''}</span><i style="--w:${n ? cnt[i] / n * 100 : 0}%"></i><b class="num">${fa(cnt[i])}</b></div>`; }).join('')}</div>`;
   }
   const nameIn = o => sid => o.students().find(s => s.id === sid)?.name || '';
+  // The student's photo from the profiles, or their initial.
+  const face = (s, name) => { const ph = s && D.photoOf ? D.photoOf(s) : ''; return ph ? `<img src="${esc(ph)}" alt="" loading="lazy">` : esc((name || s?.name || '؟').trim()[0]); };
+  const who = s => `<span class="lv-who-n"><span class="lv-face" aria-hidden="true">${face(s)}</span>${esc(s.name)}</span>`;
 
   function report(c, o, x) {
     const r = roster(o, x), pr = r.filter(s => x.att?.[s.id]).length, decks = decksOf(x), pages = [];
@@ -211,7 +232,7 @@ const LiveClass = (() => {
       <div class="grid g4 lv-kpis">${o.kpi('حاضر', `${fa(pr)} از ${fa(r.length)}`, '', '', 'teal')}${o.kpi('پیام‌ها', fa((x.chat || []).length), '', '', 'blue')}${o.kpi('نظرسنجی', fa((x.polls || []).length), '', '', 'violet')}${o.kpi('ضبط', fa(recs.length), '', '', 'amber')}</div>
       ${recs.length ? `<h3 class="lv-h3">ضبط‌ها</h3><div class="lv-recl">${recs.map((q, i) => `<button type="button" class="btn" data-rec="${i}">${IC.play} ضبط ${fa(i + 1)} · ${tm(q.at)} · ${clock(q.secs)}</button>`).join('')}</div>` : ''}
       <h3 class="lv-h3">حضور</h3><div class="table-wrap lv-rep" tabindex="0" role="region" aria-label="حضور جلسه"><table><tr><th>دانش‌آموز</th><th>کلاس</th><th>ورود</th><th>مدت</th></tr>
-        ${[...r].sort((a, b) => !x.att?.[a.id] - !x.att?.[b.id]).map(s => { const a = x.att?.[s.id]; return `<tr><td>${esc(s.name)}</td><td>${esc(o.className(s.cls))}</td><td class="num">${a ? tm(a.first) : '<span class="tag bad">غایب</span>'}</td><td class="num">${a ? `${fa(a.mins || 0)} دقیقه` : '—'}</td></tr>`; }).join('')}</table></div>
+        ${[...r].sort((a, b) => !x.att?.[a.id] - !x.att?.[b.id]).map(s => { const a = x.att?.[s.id]; return `<tr><td>${who(s)}</td><td>${esc(o.className(s.cls))}</td><td class="num">${a ? tm(a.first) : '<span class="tag bad">غایب</span>'}</td><td class="num">${a ? `${fa(a.mins || 0)} دقیقه` : '—'}</td></tr>`; }).join('')}</table></div>
       ${(x.polls || []).length ? `<h3 class="lv-h3">نظرسنجی‌ها و آزمونک‌ها</h3>${x.polls.map(p => pollResult(p, nameIn(o))).join('')}` : ''}
       ${x.notes ? `<h3 class="lv-h3">یادداشت‌های همرسانده</h3><div class="lv-replog"><p style="white-space:pre-wrap">${esc(x.notes)}</p></div>` : ''}
       ${brs.length ? `<h3 class="lv-h3">اتاق‌های جانبی</h3>${brs.map(b => `<p class="small"><b>${esc(b.name)}</b> · ${esc((b.members || []).join('، ') || '—')} · ${fa((b.chat || []).length)} پیام</p>`).join('')}` : ''}
@@ -240,7 +261,7 @@ const LiveClass = (() => {
       <div class="grid g4 lv-kpis">${kpi('حاضر', `${fa(pres.length)} از ${fa(r.length)}`)}${kpi('میانگین حضور', `${fa(pres.length ? Math.round(pres.reduce((a, q) => a + q.m, 0) / pres.length) : 0)} دقیقه`)}
         ${kpi('پیام‌ها', fa(rows.reduce((a, q) => a + (q.t.msgs || 0), 0)))}${kpi('مشارکت در نظرسنجی', np && pres.length ? `${fa(Math.round(rows.reduce((a, q) => a + Math.min(np, q.t.votes || 0), 0) / (np * pres.length) * 100))}٪` : '—')}</div>
       <div class="table-wrap lv-dash" tabindex="0" role="region" aria-label="فعالیت دانش‌آموزان"><table><tr><th>دانش‌آموز</th><th>وضعیت</th><th>حضور</th><th>پیام</th><th>واکنش</th><th>دست بالا</th><th>نظرسنجی</th><th>امتیاز فعالیت</th></tr>
-        ${rows.map(q => `<tr><td>${esc(q.s.name)}</td><td><span class="tag ${q.st === 'غایب' ? 'bad' : q.st === 'آنلاین' ? 'ok' : ''}">${q.st}</span></td><td class="num">${q.here ? `${fa(q.m)} دقیقه` : '—'}</td>
+        ${rows.map(q => `<tr><td>${who(q.s)}</td><td><span class="tag ${q.st === 'غایب' ? 'bad' : q.st === 'آنلاین' ? 'ok' : ''}">${q.st}</span></td><td class="num">${q.here ? `${fa(q.m)} دقیقه` : '—'}</td>
           <td class="num">${fa(q.t.msgs || 0)}</td><td class="num">${fa(q.t.reacts || 0)}</td><td class="num">${fa(q.t.hands || 0)}</td>
           <td class="num">${np ? `${fa(q.t.votes || 0)} از ${fa(np)}${q.t.correct ? ` · ${fa(q.t.correct)} درست` : ''}` : '—'}</td><td><span class="lv-score"><i style="--w:${q.score}%"></i><b class="num">${fa(q.score)}</b></span></td></tr>`).join('')}</table></div>
       <div class="row" style="margin-top:16px"><button class="btn" id="lv-dcsv">${IC.dl} دانلود</button><button class="btn" data-close>بستن</button></div>`, root => {
@@ -305,7 +326,7 @@ const LiveClass = (() => {
     const P = (s.p || []).map(([x, y]) => [x * W, y * W]);
     if (s.k === 'text') { g.font = `600 ${s.w * W}px Vazirmatn, Tahoma, sans-serif`; g.textBaseline = 'top'; g.direction = 'rtl'; g.textAlign = 'right'; g.fillText(s.s, s.x * W, s.y * W); }
     else if (s.k === 'note') { const x = s.x * W, y = s.y * W, n = NOTE * W; g.shadowColor = 'rgba(0,0,0,.2)'; g.shadowBlur = 8; g.shadowOffsetY = 2; g.fillStyle = '#fde68a'; g.fillRect(x - n, y, n, n); g.shadowColor = 'transparent';
-      g.fillStyle = '#1f2937'; g.font = `500 ${.014 * W}px Vazirmatn, Tahoma, sans-serif`; g.textAlign = 'right'; g.textBaseline = 'top'; g.direction = 'rtl'; wrapText(g, s.s, x - .01 * W, y + .01 * W, n - .02 * W, .02 * W, 7); }
+      g.fillStyle = '#1f2937'; g.font = `600 ${.019 * W}px Vazirmatn, Tahoma, sans-serif`; g.textAlign = 'right'; g.textBaseline = 'top'; g.direction = 'rtl'; wrapText(g, s.s, x - .01 * W, y + .012 * W, n - .02 * W, .027 * W, 5); }
     else if (s.k === 'poll') { const x = s.x * W, y = s.y * W, bw = .34 * W, rh = .032 * W, bh = (.05 + s.opts.length * .032) * W, n = s.n || 0;
       g.fillStyle = '#fff'; g.strokeStyle = '#0f766e'; g.lineWidth = Math.max(1, .002 * W); g.fillRect(x - bw, y, bw, bh); g.strokeRect(x - bw, y, bw, bh);
       g.fillStyle = '#0f5f59'; g.font = `700 ${.016 * W}px Vazirmatn, Tahoma, sans-serif`; g.textAlign = 'right'; g.textBaseline = 'top'; g.direction = 'rtl'; g.fillText(s.q.slice(0, 48), x - .01 * W, y + .012 * W);
@@ -353,7 +374,8 @@ const LiveClass = (() => {
   const mayDraw = () => R.sp !== R.main || R.host || R.presenter === R.me.key || R.allWrite || R.writers.has(R.me.sid);
   const st = sid => (R.x.stats[sid] = R.x.stats[sid] || { msgs: 0, reacts: 0, hands: 0, votes: 0, correct: 0 });
   const count = () => R.host ? R.people.size + 1 : R.waiting ? 0 : R.people.size + 2;
-  const nameOfSid = sid => R.o.students().find(s => s.id === sid)?.name || '';
+  const stuOf = sid => sid ? R.o.students().find(s => s.id === sid) : null;
+  const nameOfSid = sid => stuOf(sid)?.name || '';
   const btnIcon = (act, ic, label, extra = '') => `<button type="button" class="lv-ib" data-lv="${act}" aria-label="${label}" title="${label}" ${extra}>${ic}</button>`;
   const addIce = (pc, c) => { if (!pc) return; if (pc.remoteDescription) pc.addIceCandidate(c).catch(() => {}); else (pc._q = pc._q || []).push(c); };
   const flushIce = pc => { (pc._q || []).forEach(c => pc.addIceCandidate(c).catch(() => {})); pc._q = []; };
@@ -366,6 +388,7 @@ const LiveClass = (() => {
     const main = newSp();
     if (host) {
       if (x.status !== 'live') { x.status = 'live'; x.startedAt = x.startedAt || nowIso(); }
+      x.hostAt = Date.now();
       x.cfg = { policy: 'accept', joinMuted: true, ok: [], kicked: [], ...(x.cfg || {}) }; x.cfg.locks = { cam: false, mic: false, chat: false, notes: false, users: false, ...(x.cfg.locks || {}) };
       x.att = x.att || {}; x.stats = x.stats || {}; x.polls = x.polls || []; x.recs = x.recs || []; x.chat = x.chat || [];
       main.decks = decksOf(x); main.chat = x.chat;
@@ -387,7 +410,7 @@ const LiveClass = (() => {
     addEventListener('beforeunload', unload); document.addEventListener('keydown', onKey);
   }
   const hello = () => send({ t: 'hello', from: R.me.key, sid: R.me.sid, name: R.me.name });
-  const unload = () => { if (!R) return; if (R.host) { persist(); send({ t: 'host-away' }); } else send({ t: 'bye', from: R.me.key }); };
+  const unload = () => { if (!R) return; if (R.host) { R.x.lastAt = Date.now(); R.x.hostAt = 0; persist(); send({ t: 'host-away' }); } else send({ t: 'bye', from: R.me.key }); };
 
   // Only the host saves; strokes come fast, so saving waits for a quiet moment.
   const saveSoon = () => { if (!R?.host) return; clearTimeout(R.saveT); R.saveT = setTimeout(persist, 700); };
@@ -462,6 +485,7 @@ const LiveClass = (() => {
     if (until) set('.lv-brbar span', `${R.room ? `شما در «${R.room.name}» هستید` : `در حال بازدید از «${R.br.rooms[R.visit].name}»`} · ${clock((until - now) / 1000)} مانده`);
     if (R.br) set('.lv-brclock', clock((R.br.until - now) / 1000));
     if (R.host) {
+      if (now - (R.x.hostAt || 0) > 30000) { R.x.hostAt = now; R.o.save(); }
       let ch = false; R.people.forEach(v => { if (v.react && now - v.reactAt > 60000) { v.react = null; ch = true; } });
       if (R.hostReact && now - R.hostReactAt > 60000) { R.hostReact = null; ch = true; }
       if (ch) { sendPeople(); renderSide('users'); }
@@ -923,8 +947,8 @@ const LiveClass = (() => {
   function renderTiles() {
     const stp = $r('.lv-strip'); if (!stp) return; const list = [];
     if (R.host) { if (R.cam) list.push({ id: 'me', name: R.me.name + ' (شما)', s: R.cam, self: true });
-      R.peers.forEach((p, k) => { if (p.stream && R.people.has(k)) list.push({ id: k, name: R.people.get(k).name, s: p.stream }); }); }
-    else { if (R.rCam) list.push({ id: 'host', name: R.hostName, s: R.rCam }); if (R.cam) list.push({ id: 'me', name: 'شما', s: R.cam, self: true }); }
+      R.peers.forEach((p, k) => { if (p.stream && R.people.has(k)) list.push({ id: k, name: R.people.get(k).name, sid: R.people.get(k).sid, s: p.stream }); }); }
+    else { if (R.rCam) list.push({ id: 'host', name: R.hostName, s: R.rCam }); if (R.cam) list.push({ id: 'me', name: 'شما', sid: R.me.sid, s: R.cam, self: true }); }
     const have = new Map([...stp.children].map(e => [e.dataset.id, e]));
     list.forEach(t => {
       let el = have.get(t.id); have.delete(t.id);
@@ -932,7 +956,7 @@ const LiveClass = (() => {
       const v = el.querySelector('video'); v.muted = !!t.self; v.classList.toggle('mirror', !!t.self);
       if (v.srcObject !== t.s) { v.srcObject = t.s; v.play?.().catch(() => {}); }
       el.classList.toggle('novid', !t.s.getVideoTracks().some(x => x.readyState === 'live') || (prefs.saver && !t.self));
-      el.querySelector('.lv-av').textContent = (t.name || '؟').trim()[0]; el.querySelector('b').textContent = t.name;
+      const fc = face(stuOf(t.sid), t.name); if (el.dataset.fc !== fc) { el.dataset.fc = fc; el.querySelector('.lv-av').innerHTML = fc; } el.querySelector('b').textContent = t.name;
     });
     have.forEach(e => e.remove());
     $room()?.classList.toggle('has-tiles', list.length > 0);
@@ -969,7 +993,7 @@ const LiveClass = (() => {
   }
   const userRow = (v, opts = {}) => {
     const isPres = v.key === R.presenter || (v.key === 'host' && !R.presenter), canW = v.sid && (R.allWrite || R.writers.has(v.sid));
-    return `<li class="lv-p-on ${v.away ? 'away' : ''}"><span class="lv-av2" aria-hidden="true">${esc((v.name || '؟').trim()[0])}${isPres ? `<em>${IC.present}</em>` : ''}</span>
+    return `<li class="lv-p-on ${v.away ? 'away' : ''}"><span class="lv-av2" aria-hidden="true">${face(stuOf(v.sid), v.name)}${isPres ? `<em>${IC.present}</em>` : ''}</span>
       <span class="lv-pn">${esc(v.name)}${opts.role ? ` <small>${opts.role}</small>` : ''}${isPres ? ' <small>ارائه‌دهنده</small>' : ''}${v.away ? ' <small>دور از کلاس</small>' : ''}</span>
       <span class="lv-pst">${v.hand ? `<span class="lv-ihand" title="دست بالا">${IC.hand}</span>` : ''}${v.react ? `<span class="lv-emo" title="واکنش">${v.react}</span>` : ''}${canW ? `<span title="اجازهٔ نوشتن">${IC.pen}</span>` : ''}${v.cam ? `<span title="دوربین روشن">${IC.cam}</span>` : ''}${v.mic ? `<span title="میکروفون روشن">${IC.mic}</span>` : `<span class="dim" title="میکروفون خاموش">${IC.micOff}</span>`}</span>
       ${opts.menu ? `<button type="button" class="lv-ib" data-lv="user-more" data-key="${esc(v.key)}" aria-label="کارهای ${esc(v.name)}" aria-haspopup="true" aria-expanded="false">${IC.more}</button>` : ''}</li>`;
@@ -988,8 +1012,8 @@ const LiveClass = (() => {
       ${pend.length ? `<div class="lv-pend"><b>${IC.guest} منتظر پذیرش (${fa(pend.length)})</b>${pend.map(v => `<div class="lv-hrow"><span>${esc(v.name)}</span><span><button type="button" class="btn sm primary" data-lv="admit" data-key="${esc(v.key)}">پذیرش</button> <button type="button" class="btn sm" data-lv="deny" data-key="${esc(v.key)}">رد</button></span></div>`).join('')}${pend.length > 1 ? '<button type="button" class="btn sm" data-lv="admit-all">پذیرش همه</button>' : ''}</div>` : ''}
       ${R.br ? brCard() : ''}
       <ul class="lv-people">${userRow({ key: 'host', name: R.me.name, away: R.away, react: R.hostReact, mic: !!R.mic, cam: !!R.cam }, { role: '(شما)' })}${onl.map(v => userRow(v, { menu: true })).join('')}</ul>
-      ${left.length ? `<p class="lv-plh">رفته (${fa(left.length)})</p><ul class="lv-people">${left.map(s => `<li class="lv-p-left"><i></i><span class="lv-pn">${esc(s.name)}</span><span class="small">${fa(R.x.att[s.id].mins || 0)} دقیقه</span></li>`).join('')}</ul>` : ''}
-      ${off.length ? `<p class="lv-plh">وارد نشده (${fa(off.length)})</p><ul class="lv-people">${off.map(s => `<li class="lv-p-off"><i></i><span class="lv-pn">${esc(s.name)}</span></li>`).join('')}</ul>` : ''}`;
+      ${left.length ? `<p class="lv-plh">رفته (${fa(left.length)})</p><ul class="lv-people">${left.map(s => `<li class="lv-p-left"><span class="lv-av2 sm" aria-hidden="true">${face(s)}</span><span class="lv-pn">${esc(s.name)}</span><span class="small">${fa(R.x.att[s.id].mins || 0)} دقیقه</span></li>`).join('')}</ul>` : ''}
+      ${off.length ? `<p class="lv-plh">وارد نشده (${fa(off.length)})</p><ul class="lv-people">${off.map(s => `<li class="lv-p-off"><span class="lv-av2 sm" aria-hidden="true">${face(s)}</span><span class="lv-pn">${esc(s.name)}</span></li>`).join('')}</ul>` : ''}`;
   }
 
   /* ---- polls ---- */
@@ -1278,6 +1302,7 @@ const LiveClass = (() => {
     vote: b => vote(+b.dataset.i), unmute: b => { const v = $r('.lv-ext video'); if (v) { v.muted = false; b.hidden = true; } },
   };
   function onClick(e) {
+    if (!R) return;
     if (R.menu && !e.target.closest('.lv-menu')) { const same = e.target.closest('[data-lv]') === R.menu.btn; closeMenu(); if (same) return; }
     if (e.target.closest('.lv-menu')) return;
     const t = e.target.closest('[data-tool]'); if (t) return setTool(t.dataset.tool);
@@ -1332,7 +1357,7 @@ const LiveClass = (() => {
     const { x, o } = R;
     if (R.br) endBr();
     [...R.people.keys()].forEach(depart); Object.values(x.att).forEach(a => { delete a.since; });
-    x.status = 'done'; x.endedAt = nowIso(); persist();
+    x.status = 'done'; x.endedAt = nowIso(); x.hostAt = 0; persist();
     send({ t: 'end', title: x.title });
     leave(false); o.render(); toast(`کلاس تمام شد · ${fa(present(x))} نفر حاضر بودند.`);
   }
@@ -1360,6 +1385,7 @@ const LiveClass = (() => {
     if (name === 'lv-dash') return dashboard(x, o);
     if (name === 'lv-rec') return x.recs.length > 1 ? recsModal(c, o) : playRec(x, 0);
     if (name === 'lv-recs') return recsModal(c, o);
+    if (name === 'lv-finish') return UI.ask('پایان جلسه', `جلسهٔ «${x.title}» تمام‌شده ثبت شود؟ حضور و گفت‌وگو در گزارش جلسه می‌ماند.`, 'پایان جلسه').then(ok => { if (!ok) return; finish(x); o.save(); o.render(); toast('جلسه به پایان رسید.'); });
     if (name === 'lv-del') return UI.ask('حذف جلسه', `جلسهٔ «${x.title}» حذف شود؟`, 'حذف کن').then(ok => { if (!ok) return; (x.recs || []).forEach(q => IDB.del('rec:' + q.id)); live(c).sessions = live(c).sessions.filter(y => y.id !== x.id); o.save(); o.render(); });
     if (name === 'lv-now') { const s = blank({ title: `کلاس ${o.sub}`, date: today(), from: hm(), to: '', cls: null }); live(c).sessions.push(s); o.save(); return open(c, o, s, null); }
     if (name === 'lv-join') return open(c, o, x, o.as());

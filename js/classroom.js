@@ -729,7 +729,7 @@ const Classroom = ctx => {
     'cl-sub': b => { state.sub = b.dataset.id; state.item = ''; state.tab = 'course'; render(); },
     'cl-back': () => { state.sub = ''; state.item = ''; render(); },
     'cl-tab': b => { state.tab = b.dataset.id; render(); },
-    ...Object.fromEntries(['lv-new', 'lv-edit', 'lv-report', 'lv-dash', 'lv-rec', 'lv-recs', 'lv-del', 'lv-now', 'lv-join'].map(k => [k, b => LiveClass.act(k, b, C(), O())])),
+    ...Object.fromEntries(['lv-new', 'lv-edit', 'lv-report', 'lv-dash', 'lv-rec', 'lv-recs', 'lv-finish', 'lv-del', 'lv-now', 'lv-join'].map(k => [k, b => LiveClass.act(k, b, C(), O())])),
     'cl-link': () => {
       const link = document.getElementById('on-link').value.trim();
       if (link && !/^https?:\/\//i.test(link)) return UI.invalid('#on-link', 'لینک باید با http:// یا https:// شروع شود.');
