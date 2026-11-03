@@ -333,7 +333,7 @@ const Classroom = ctx => {
         ${kids.map(k => secBlock(k, s, depth + 1)).join('')}
         ${s || ro() ? '' : `<div class="cr-plus-row"><button type="button" class="cr-plus" data-act="cl-add" data-id="${sc.id}" aria-label="افزودن فعالیت یا منبع به «${esc(sc.title)}»" title="افزودن فعالیت یا منبع">+</button></div>`}</div></section>`;
   }
-  const TABS = [['course', 'درس'], ['settings', 'تنظیمات'], ['people', 'شرکت‌کنندگان'], ['grades', 'نمره‌ها'], ['acts', 'فعالیت‌ها'], ['comp', 'تکمیل فعالیت‌ها'], ['groups', 'گروه‌ها']];
+  const TABS = [['course', 'درس'], ['live', 'کلاس آنلاین'], ['settings', 'تنظیمات'], ['people', 'شرکت‌کنندگان'], ['grades', 'نمره‌ها'], ['acts', 'فعالیت‌ها'], ['comp', 'تکمیل فعالیت‌ها'], ['groups', 'گروه‌ها']];
   function coursePage() {
     const c = C(), s = state.as ? student(state.as) : null;
     const asSel = `<label class="row small cr-as">از نگاه دانش‌آموز <select class="input" id="cr-as"><option value="">نمای معلم</option>${ctx.studentOptions(state.as)}</select></label>`;
@@ -342,7 +342,8 @@ const Classroom = ctx => {
     if (s) return head + `<p class="note">صفحه را از نگاه <b>${esc(s.name)}</b> (${esc(className(s.cls))}) می‌بینید؛ کاری که اینجا انجام شود به نام او ثبت می‌شود.</p>` + studentCourse(s);
     const tabs = `<div class="tabs cr-tabs" role="tablist" aria-label="بخش‌های درس">${TABS.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-act="cl-tab" data-id="${k}">${l}${k === 'groups' ? ` (${fa(c.groups.length)})` : ''}</button>`).join('')}</div>`;
     let body;
-    if (state.tab === 'grades') body = gradeBook();
+    if (state.tab === 'live') body = LiveClass.tab(c, O());
+    else if (state.tab === 'grades') body = gradeBook();
     else if (state.tab === 'comp') body = compReport();
     else if (state.tab === 'groups') body = groupsTab();
     else if (state.tab === 'settings') body = settingsTab();
@@ -357,14 +358,14 @@ const Classroom = ctx => {
         <button class="btn sm" data-act="cl-bk-show" ${state.picked.size ? '' : 'disabled'}>نمایش</button><button class="btn sm" data-act="cl-bk-hide" ${state.picked.size ? '' : 'disabled'}>پنهان</button>
         <button class="btn sm" data-act="cl-bk-dup" ${state.picked.size ? '' : 'disabled'}>تکثیر</button><button class="btn sm" data-act="cl-bk-move" ${state.picked.size ? '' : 'disabled'}>انتقال</button>
         <button class="btn sm danger" data-act="cl-bk-del" ${state.picked.size ? '' : 'disabled'}>حذف</button><button class="btn sm" data-act="cl-bulk">پایان</button></div>` : '';
-      body = bar + bulk + (c.set.summary ? `<div class="card">${K.show(c.set.summary)}</div>` : '') + linkCard(c) + c.secs.filter(k => !k.parent).map(k => secBlock(k, null)).join('')
+      body = bar + bulk + (c.set.summary ? `<div class="card">${K.show(c.set.summary)}</div>` : '') + LiveClass.card(c, O(), null) + c.secs.filter(k => !k.parent).map(k => secBlock(k, null)).join('')
         + (ro() ? '' : '<div class="cr-plus-row"><button class="btn" data-act="cl-sec-new">+ بخش تازه (مثلاً یک فصل)</button></div>');
     }
     return head + tabs + body;
   }
-  const linkCard = c => `<div class="card cr-link"><div class="card-head"><div class="row"><span class="tile cr-ic" style="--tone-bg:var(--slate-bg);--tone-ink:var(--ink)">${SV('<rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/>')}</span><h2 style="margin:0">کلاس آنلاین</h2></div>
-      ${c.link ? `<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">ورود به کلاس آنلاین ←</a>` : ''}</div>
-    ${c.link ? '' : `<p class="muted small" style="margin:0">${state.as ? 'لینک کلاس هنوز ثبت نشده.' : 'لینک کلاس را در زبانهٔ «تنظیمات» بگذارید.'}</p>`}</div>`;
+  // What liveclass.js needs from this page.
+  const O = () => ({ sub: state.sub, save, render, ro: ro(), me, empty, className, students: () => d().students, classes: () => d().classes, as: () => state.as ? student(state.as) : null,
+    kpi: (l, v, sub, _h, tone) => `<div class="card kpi ${tone ? 'tone-' + tone : ''}"><div class="l">${esc(l)}</div><div class="v">${v}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>` });
   function studentCourse(s) {
     const c = C(), mine = c.items.filter(i => listedFor(i, s) && !secHidden(c.secs.find(k => k.id === (i.sec || 'gen')) || {}));
     const cps = mine.map(i => completed(i, s.id)).filter(x => x != null), dn = cps.filter(Boolean).length;
@@ -374,7 +375,7 @@ const Classroom = ctx => {
         <p class="small muted" style="margin:6px 0 0">${fa(dn)} از ${fa(cps.length)} فعالیت خاتمه یافته</p></div>` : ''}
       ${soon.length ? `<div class="card"><h2>کارهای پیش رو</h2>${soon.map(([i, at]) => `<div class="row small" style="padding:3px 0">${tile(i.type)}<button class="cr-name" data-act="cl-open" data-id="${i.id}">${esc(i.title)}</button><span class="muted">${esc(K.fdt(at))}</span></div>`).join('')}</div>` : ''}</div>`;
     const grades = set().showGrades ? mine.filter(i => gradeOf(i, s.id)) : [];
-    return top + (c.set.summary ? `<div class="card">${K.show(c.set.summary)}</div>` : '') + linkCard(c) + c.secs.filter(k => !k.parent && !k.hidden).map(k => secBlock(k, s)).join('')
+    return top + (c.set.summary ? `<div class="card">${K.show(c.set.summary)}</div>` : '') + LiveClass.card(c, O(), s) + c.secs.filter(k => !k.parent && !k.hidden).map(k => secBlock(k, s)).join('')
       + (grades.length ? `<div class="card"><h2>نمره‌های من</h2><div class="table-wrap"><table><tr><th>فعالیت</th><th>نمره</th></tr>${grades.map(i => `<tr><td>${esc(i.title)}</td><td class="num">${esc(gradeOf(i, s.id).text)}</td></tr>`).join('')}</table></div></div>` : '')
       || `<div class="card">${empty('هنوز چیزی برای این دانش‌آموز گذاشته نشده.')}</div>`;
   }
@@ -728,6 +729,7 @@ const Classroom = ctx => {
     'cl-sub': b => { state.sub = b.dataset.id; state.item = ''; state.tab = 'course'; render(); },
     'cl-back': () => { state.sub = ''; state.item = ''; render(); },
     'cl-tab': b => { state.tab = b.dataset.id; render(); },
+    ...Object.fromEntries(['lv-new', 'lv-edit', 'lv-report', 'lv-del', 'lv-now', 'lv-join'].map(k => [k, b => LiveClass.act(k, b, C(), O())])),
     'cl-link': () => {
       const link = document.getElementById('on-link').value.trim();
       if (link && !/^https?:\/\//i.test(link)) return UI.invalid('#on-link', 'لینک باید با http:// یا https:// شروع شود.');
