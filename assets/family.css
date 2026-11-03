@@ -63,3 +63,10 @@
 .game-wrap { border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); background: #8fd068; }
 .game-frame { display: block; width: 100%; height: max(520px, calc(100dvh - 300px)); border: 0; }
 @media (max-width: 720px) { .game-frame { height: max(480px, calc(100dvh - 250px)); } }
+
+/* a class on air now: quick entry on the student's home page */
+.fm-live { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-top: 3px solid #dc2626; margin-bottom: 14px; }
+.fm-live .fm-l { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.fm-live-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #dc2626; margin-inline-end: 7px; animation: fm-pulse 1.4s infinite; }
+@keyframes fm-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .fm-live-dot { animation: none; } }

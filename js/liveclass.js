@@ -93,7 +93,7 @@ const LiveClass = (() => {
     const run = async (mode, fn) => { const d = await open(); return new Promise((ok, no) => { const t = d.transaction('kv', mode), q = fn(t.objectStore('kv')); t.oncomplete = () => ok(q?.result); t.onerror = () => no(t.error); }); };
     return { get: k => run('readonly', s => s.get(k)).catch(() => null), set: (k, v) => run('readwrite', s => s.put(v, k)).catch(() => null), del: k => run('readwrite', s => s.delete(k)).catch(() => null) };
   })();
-  const PREF = 'mehr8-live-prefs', PDEF = { font: 'n', sound: true, motion: true, saver: false, layout: 'smart', side: true };
+  const PREF = 'mehr8-live-prefs', PDEF = { font: 'n', sound: true, motion: true, saver: false, layout: 'smart', side: true, theme: 'dark', board: 'paper', rest: true };
   const prefs = (() => { try { return { ...PDEF, ...JSON.parse(localStorage.getItem(PREF) || '{}') }; } catch { return { ...PDEF }; } })();
   const savePrefs = () => { try { localStorage.setItem(PREF, JSON.stringify(prefs)); } catch { /* private window */ } };
   let AC;
@@ -311,8 +311,10 @@ const LiveClass = (() => {
     for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { g.fillText(line, x, y + n * lh); line = w; if (++n >= max) return; } else line = t; }
     if (line) g.fillText(line, x, y + n * lh);
   }
+  // A warm paper board is gentler on the eyes over a long class than pure white (settings › راحتی چشم).
+  const PAPER = () => prefs.board === 'white' ? '#ffffff' : '#f4f0e6';
   function paint(g, strokes, W, H, bg, vp = { z: 1, x: 0, y: 0 }, extra) {
-    g.save(); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.scale(vp.z, vp.z); g.translate(-vp.x * W, -vp.y * W);
+    g.save(); g.fillStyle = PAPER(); g.fillRect(0, 0, W, H); g.scale(vp.z, vp.z); g.translate(-vp.x * W, -vp.y * W);
     if (bg?.complete && bg.naturalWidth) { const r = Math.min(W / bg.naturalWidth, H / bg.naturalHeight), w = bg.naturalWidth * r, h = bg.naturalHeight * r; g.drawImage(bg, (W - w) / 2, (H - h) / 2, w, h); }
     g.lineCap = 'round'; g.lineJoin = 'round';
     (strokes || []).forEach(s => drawStroke(g, extra?.swap?.id === s.id ? extra.swap : s, W));
@@ -322,7 +324,7 @@ const LiveClass = (() => {
   }
   function drawStroke(g, s, W) {
     g.save(); g.strokeStyle = g.fillStyle = s.c || '#1f2937'; g.lineWidth = Math.max(1, (s.w || .004) * W); g.globalAlpha = s.k === 'marker' ? .35 : 1;
-    if (s.k === 'eraser') { g.strokeStyle = '#fff'; g.globalAlpha = 1; }
+    if (s.k === 'eraser') { g.strokeStyle = PAPER(); g.globalAlpha = 1; }
     const P = (s.p || []).map(([x, y]) => [x * W, y * W]);
     if (s.k === 'text') { g.font = `600 ${s.w * W}px Vazirmatn, Tahoma, sans-serif`; g.textBaseline = 'top'; g.direction = 'rtl'; g.textAlign = 'right'; g.fillText(s.s, s.x * W, s.y * W); }
     else if (s.k === 'note') { const x = s.x * W, y = s.y * W, n = NOTE * W; g.shadowColor = 'rgba(0,0,0,.2)'; g.shadowBlur = 8; g.shadowOffsetY = 2; g.fillStyle = '#fde68a'; g.fillRect(x - n, y, n, n); g.shadowColor = 'transparent';
@@ -405,8 +407,8 @@ const LiveClass = (() => {
       waiting: !host, side: 'chat', unread: 0, presMin: false, menu: null };
     R.chan = new BroadcastChannel('mehr8-live:' + x.id);
     R.chan.onmessage = e => onMain(e.data);
-    shell(); applyLayout(); setView('board'); renderAll(); R.tickT = setInterval(tick, 1000);
-    if (host) send({ t: 'host-here' }); else hello();
+    shell(); applyLayout(); setView('board'); renderAll(); R.tickT = setInterval(tick, 1000); R.vadT = setInterval(listen, 200);
+    if (host) send({ t: 'host-here' }); else { hello(); try { if (window.Notification?.permission === 'default') Notification.requestPermission().catch(() => {}); } catch { /* not supported */ } }
     addEventListener('beforeunload', unload); document.addEventListener('keydown', onKey);
   }
   const hello = () => send({ t: 'hello', from: R.me.key, sid: R.me.sid, name: R.me.name });
@@ -428,6 +430,7 @@ const LiveClass = (() => {
     el.innerHTML = `<header class="lv-top"><div class="lv-tl"><span class="lv-live">${IC.live} زنده</span>
           <button type="button" class="lv-title" data-lv="details" aria-haspopup="true" aria-expanded="false" title="جزئیات جلسه"><b>${esc(x.title)}</b>${IC.chev}</button>
           ${host ? `<button type="button" class="lv-recbtn" data-lv="rec" aria-pressed="false">${IC.rec}<span>شروع ضبط</span></button>` : `<span class="lv-rec-on" hidden>${IC.rec} در حال ضبط</span>`}</div>
+        <div class="lv-talk" role="status" aria-live="polite" hidden>${IC.mic}<span class="lv-talk-l">در حال صحبت:</span><b></b></div>
         <div class="lv-tr">${host ? `<button type="button" class="lv-timer" data-lv="timer-menu" aria-haspopup="true" hidden>${IC.timer}<b class="num"></b></button>` : `<span class="lv-timer" hidden>${IC.timer}<b class="num"></b></span>`}
           <span class="lv-clock num" aria-label="مدت کلاس"></span><span class="lv-count" title="شرکت‌کنندگان">${IC.users}<b class="num"></b></span>
           ${host ? btnIcon('dash', IC.chart, 'داشبورد تحلیل یادگیری') : ''}
@@ -455,6 +458,11 @@ const LiveClass = (() => {
         <div class="lv-fg lv-fc">${fb('mic', IC.micOff, 'میکروفون', 'aria-pressed="false"')}${fb('cam', IC.camOff, 'دوربین', 'aria-pressed="false"')}${host ? fb('screen', IC.screen, 'اشتراک صفحه', 'aria-pressed="false"') : ''}${fb('react', IC.emoji, 'واکنش', 'aria-haspopup="true" aria-expanded="false"')}</div>
         <div class="lv-fg">${host ? '' : fb('hand', IC.hand, 'بالا بردن دست', 'aria-pressed="false"')}${fb('pres', IC.present, 'نمایش ارائه', 'aria-pressed="true"')}${fb('side', IC.side, 'پنل کناری', 'aria-pressed="true"')}</div></footer>`;
     document.body.appendChild(el); document.body.classList.add('lv-open');
+    el.querySelector('.lv-stabs').addEventListener('keydown', e => {
+      const tabs = [...el.querySelectorAll('[data-side]')], i = tabs.indexOf(document.activeElement); if (i < 0) return;
+      const j = { ArrowLeft: i + 1, ArrowRight: i - 1, Home: 0, End: tabs.length - 1 }[e.key]; if (j == null) return;
+      e.preventDefault(); const t = tabs[(j + tabs.length) % tabs.length]; openSide(t.dataset.side); t.focus();
+    });
     el.addEventListener('click', onClick); el.addEventListener('submit', onSubmit); el.addEventListener('input', onInput); el.addEventListener('change', onChange);
     wireBoard();
     R.ro = new ResizeObserver(() => paintBoard()); R.ro.observe($r('.lv-boardwrap'));
@@ -464,7 +472,7 @@ const LiveClass = (() => {
 
   function applyLayout() {
     const el = $room(); if (!el) return;
-    el.dataset.lay = R.presMin ? 'video' : prefs.layout; el.dataset.fs = prefs.font;
+    el.dataset.lay = R.presMin ? 'video' : prefs.layout; el.dataset.fs = prefs.font; el.dataset.th = prefs.theme;
     el.classList.toggle('no-side', !prefs.side); el.classList.toggle('still', !prefs.motion);
     fbState('pres', !R.presMin); fbState('side', prefs.side); renderTiles(); requestAnimationFrame(paintBoard);
   }
@@ -477,6 +485,7 @@ const LiveClass = (() => {
     if (!R) return; const now = Date.now();
     set('.lv-clock', clock((now - (R.startedAt ? +new Date(R.startedAt) : R.started)) / 1000));
     set('.lv-count b', fa(count()));
+    if (prefs.rest && now >= (R.restAt || (R.restAt = now + 20 * 60000))) { R.restAt = now + 20 * 60000; restCard(); }
     if (R.host) set('.lv-recbtn span', R.rec ? 'توقف ضبط ' + clock((now - R.recAt) / 1000) : 'شروع ضبط');
     const tc = $r('.lv-timer'); if (tc) { const t = R.timer; tc.hidden = !t;
       if (t) { const s = t.mode === 'down' ? (t.end - now) / 1000 : (now - t.start) / 1000; tc.querySelector('b').textContent = clock(s); tc.classList.toggle('over', t.mode === 'down' && s <= 0);
@@ -491,6 +500,13 @@ const LiveClass = (() => {
       if (ch) { sendPeople(); renderSide('users'); }
       if (R.br && now >= R.br.until) endBr();
     }
+  }
+
+  // 20-20-20: every 20 minutes, 20 seconds looking at something far away rests the eyes.
+  function restCard() {
+    $r('.lv-rest')?.remove(); const el = document.createElement('div'); el.className = 'lv-rest'; el.setAttribute('role', 'status');
+    el.innerHTML = `<b>استراحت چشم</b><span>۲۰ ثانیه به جایی دور نگاه کن و چند بار پلک بزن.</span><i class="num">${fa(20)}</i>${btnIcon('rest-x', IC.clear, 'بستن')}`;
+    $room().appendChild(el); let n = 20; const t = setInterval(() => { n--; if (!el.isConnected || n <= 0) { clearInterval(t); el.remove(); return; } el.querySelector('i').textContent = fa(n); }, 1000);
   }
 
   /* ---- views of the stage ---- */
@@ -732,11 +748,15 @@ const LiveClass = (() => {
   const setTimer = t => { R.timer = t; send({ t: 'timer', timer: t }); tick(); };
   function settingsModal() {
     modal(`<h2>تنظیمات</h2><fieldset class="lv-fs"><legend>اندازهٔ نوشته‌های گفت‌وگو و یادداشت</legend>${[['s', 'کوچک'], ['n', 'معمولی'], ['l', 'بزرگ']].map(([k, l]) => `<label class="lv-chk"><input type="radio" name="lv-fsz" value="${k}" ${prefs.font === k ? 'checked' : ''}> ${l}</label>`).join('')}</fieldset>
+      <fieldset class="lv-fs"><legend>راحتی چشم</legend>${[['dark', 'تیرهٔ ملایم'], ['light', 'روشن گرم']].map(([k, l]) => `<label class="lv-chk"><input type="radio" name="lv-th" value="${k}" ${prefs.theme === k ? 'checked' : ''}> رنگ کلاس: ${l}</label>`).join('')}
+        ${[['paper', 'کاغذی'], ['white', 'سفید']].map(([k, l]) => `<label class="lv-chk"><input type="radio" name="lv-bd" value="${k}" ${prefs.board === k ? 'checked' : ''}> رنگ تخته: ${l}</label>`).join('')}
+        <label class="lv-chk"><input type="checkbox" id="lv-pr" ${prefs.rest ? 'checked' : ''}> یادآور استراحت چشم هر ۲۰ دقیقه</label></fieldset>
       <fieldset class="lv-fs"><legend>اعلان و نمایش</legend><label class="lv-chk"><input type="checkbox" id="lv-ps" ${prefs.sound ? 'checked' : ''}> صدای اعلان</label>
         <label class="lv-chk"><input type="checkbox" id="lv-pm" ${prefs.motion ? 'checked' : ''}> جلوه‌های حرکتی واکنش‌ها</label>
         <label class="lv-chk"><input type="checkbox" id="lv-pv" ${prefs.saver ? 'checked' : ''}> صرفه‌جویی در اینترنت: نمایش ندادن تصویر وبکم دیگران</label></fieldset>
       <div class="row" style="margin-top:16px"><button class="btn primary" id="lv-sok">ذخیره</button><button class="btn" data-close>انصراف</button></div>`, root => {
       root.querySelector('#lv-sok').onclick = () => { prefs.font = root.querySelector('[name=lv-fsz]:checked').value; prefs.sound = root.querySelector('#lv-ps').checked; prefs.motion = root.querySelector('#lv-pm').checked; prefs.saver = root.querySelector('#lv-pv').checked;
+        prefs.theme = root.querySelector('[name=lv-th]:checked').value; prefs.board = root.querySelector('[name=lv-bd]:checked').value; prefs.rest = root.querySelector('#lv-pr').checked; R.imgs.clear();
         savePrefs(); applyLayout(); close(); toast('تنظیمات ذخیره شد.'); };
     });
   }
@@ -907,7 +927,7 @@ const LiveClass = (() => {
     else { if (!R.host && R.cfg.locks.mic) return toast('معلم میکروفون دانش‌آموزان را بسته است.');
       try { R.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { return toast('میکروفون در دسترس نیست یا اجازه داده نشد.'); }
       R.recMix?.add(R.mic); }
-    fbState('mic', !!R.mic, IC.mic, IC.micOff); mediaOut();
+    hear(R.me.key, R.mic); fbState('mic', !!R.mic, IC.mic, IC.micOff); mediaOut();
   }
   async function toggleCam(force) {
     if (R.cam || force === false) { if (!R.cam) return; R.cam.getTracks().forEach(t => t.stop()); R.cam = null; if (R.host && R.mainView === 'cam') hostView('board'); }
@@ -959,7 +979,41 @@ const LiveClass = (() => {
       const fc = face(stuOf(t.sid), t.name); if (el.dataset.fc !== fc) { el.dataset.fc = fc; el.querySelector('.lv-av').innerHTML = fc; } el.querySelector('b').textContent = t.name;
     });
     have.forEach(e => e.remove());
+    stp.querySelectorAll('.lv-tile').forEach(t => t.classList.toggle('talk', !!R.talk?.has(t.dataset.id === 'me' ? R.me.key : t.dataset.id)));
     $room()?.classList.toggle('has-tiles', list.length > 0);
+  }
+
+  /* ---- who is talking ---- */
+  // Every microphone gets an analyser; a voice counts as talking while its level is above a floor, held a moment so the
+  // label does not flicker. The teacher's tab hears everyone and sends the list; a student also hears their own mic at once.
+  function hear(key, stream) {
+    const V = R.vad || (R.vad = { ac: null, m: new Map() }), cur = V.m.get(key), tr = stream?.getAudioTracks().find(t => t.readyState === 'live');
+    if (cur && cur.tr === tr) return;
+    if (cur) { try { cur.src.disconnect(); } catch { /* gone */ } V.m.delete(key); }
+    if (!tr) return;
+    try { V.ac = V.ac || new AudioContext(); V.ac.resume?.().catch(() => {});
+      const src = V.ac.createMediaStreamSource(new MediaStream([tr])), an = V.ac.createAnalyser(); an.fftSize = 512; src.connect(an);
+      V.m.set(key, { tr, src, an, buf: new Float32Array(an.fftSize), until: 0 }); } catch { /* no audio */ }
+  }
+  function listen() {
+    if (!R) return; const now = Date.now(), on = new Set();
+    R.vad?.m.forEach((a, k) => { if (a.tr.readyState !== 'live' || !a.tr.enabled) return; a.an.getFloatTimeDomainData(a.buf);
+      let e = 0; for (const x of a.buf) e += x * x; if (Math.sqrt(e / a.buf.length) > .02) a.until = now + 700; if (a.until > now) on.add(k); });
+    let keys;
+    if (R.host) keys = [...on].filter(k => k === R.me.key || R.people.has(k));
+    else keys = [...(R.heard || []).filter(k => k !== R.me.key), ...(on.has(R.me.key) ? [R.me.key] : [])];
+    keys.sort(); const sig = keys.join();
+    if (sig === R.talkSig) return; R.talkSig = sig;
+    if (R.host) send({ t: 'speak', keys });
+    showTalk(keys);
+  }
+  function showTalk(keys) {
+    R.talk = new Set(keys);
+    const nm = k => k === R.me.key ? 'شما' : k === 'host' ? R.hostName : R.people.get(k)?.name;
+    const names = keys.map(nm).filter(Boolean), box = $r('.lv-talk');
+    if (box) { box.hidden = !names.length; box.querySelector('b').textContent = names.length > 3 ? `${names.slice(0, 3).join('، ')} و ${fa(names.length - 3)} نفر دیگر` : names.join('، '); }
+    document.querySelectorAll('#lv-room .lv-tile').forEach(t => t.classList.toggle('talk', R.talk.has(t.dataset.id === 'me' ? R.me.key : t.dataset.id)));
+    document.querySelectorAll('#lv-room .lv-people li[data-key]').forEach(li => li.classList.toggle('talk', R.talk.has(li.dataset.key)));
   }
 
   /* ---- side panel ---- */
@@ -967,7 +1021,7 @@ const LiveClass = (() => {
   function renderSide(kind) {
     if (!R) return; if (kind && kind !== R.side) return badges();
     const p = $r('.lv-spanel'); if (!p) return;
-    document.querySelectorAll('#lv-room [data-side]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.side === R.side)));
+    document.querySelectorAll('#lv-room [data-side]').forEach(b => { const on = b.dataset.side === R.side; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
     const a = document.activeElement, foc = p.contains(a) && a.id ? { id: a.id, at: a.selectionStart } : null;
     p.innerHTML = { chat: sideChat, users: sideUsers, notes: sideNotes, poll: sidePoll }[R.side]();
     if (foc) { const i = p.querySelector('#' + foc.id); if (i) { i.focus(); try { i.setSelectionRange(foc.at, foc.at); } catch { /* not text */ } } }
@@ -993,7 +1047,7 @@ const LiveClass = (() => {
   }
   const userRow = (v, opts = {}) => {
     const isPres = v.key === R.presenter || (v.key === 'host' && !R.presenter), canW = v.sid && (R.allWrite || R.writers.has(v.sid));
-    return `<li class="lv-p-on ${v.away ? 'away' : ''}"><span class="lv-av2" aria-hidden="true">${face(stuOf(v.sid), v.name)}${isPres ? `<em>${IC.present}</em>` : ''}</span>
+    return `<li class="lv-p-on ${v.away ? 'away' : ''} ${R.talk?.has(v.key) ? 'talk' : ''}" data-key="${esc(v.key)}"><span class="lv-av2" aria-hidden="true">${face(stuOf(v.sid), v.name)}${isPres ? `<em>${IC.present}</em>` : ''}</span>
       <span class="lv-pn">${esc(v.name)}${opts.role ? ` <small>${opts.role}</small>` : ''}${isPres ? ' <small>ارائه‌دهنده</small>' : ''}${v.away ? ' <small>دور از کلاس</small>' : ''}</span>
       <span class="lv-pst">${v.hand ? `<span class="lv-ihand" title="دست بالا">${IC.hand}</span>` : ''}${v.react ? `<span class="lv-emo" title="واکنش">${v.react}</span>` : ''}${canW ? `<span title="اجازهٔ نوشتن">${IC.pen}</span>` : ''}${v.cam ? `<span title="دوربین روشن">${IC.cam}</span>` : ''}${v.mic ? `<span title="میکروفون روشن">${IC.mic}</span>` : `<span class="dim" title="میکروفون خاموش">${IC.micOff}</span>`}</span>
       ${opts.menu ? `<button type="button" class="lv-ib" data-lv="user-more" data-key="${esc(v.key)}" aria-label="کارهای ${esc(v.name)}" aria-haspopup="true" aria-expanded="false">${IC.more}</button>` : ''}</li>`;
@@ -1061,7 +1115,25 @@ const LiveClass = (() => {
     const s = { id: rid(), k: 'poll', x: .97, y: .03, q: p.q, opts: p.opts, cnt: counts(p), n: Object.keys(p.votes).length, by: R.me.key };
     if (R.mainView !== 'board') hostView('board'); doOp({ t: 'add', s }, { t: 'del', id: s.id }); toast('نتیجه روی تخته آمد.');
   }
-  function vote(v) { const p = R.poll; if (!p || p.closed) return; R.myVote[p.id] = v; send({ t: 'vote', id: p.id, sid: R.me.sid, v }); renderSide('poll'); }
+  // A new poll reaches every student at once: a card over the class with the answers in it, a sound, and — when the
+  // class tab is in the background — a browser notification and a changed tab title.
+  function pollNotice(p) {
+    beep(820); setTimeout(() => beep(990), 160); pollPop(p);
+    if (document.hidden) {
+      try { if (window.Notification?.permission === 'granted') { const n = new Notification('نظرسنجی تازه در کلاس ' + R.o.sub, { body: p.q, tag: 'lv-poll' }); n.onclick = () => { focus(); n.close(); }; } } catch { /* not allowed here */ }
+      if (!R.title0) { R.title0 = document.title; document.title = '🔔 نظرسنجی تازه · ' + R.title0;
+        const back = () => { if (document.hidden) return; if (R?.title0) { document.title = R.title0; R.title0 = null; } document.removeEventListener('visibilitychange', back); };
+        document.addEventListener('visibilitychange', back); }
+    }
+  }
+  function pollPop(p) {
+    $r('.lv-ppop')?.remove(); if (!p || !R || R.host) return;
+    const el = document.createElement('div'); el.className = 'lv-ppop'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-label', 'نظرسنجی تازه');
+    el.innerHTML = `<div class="lv-pph">${IC.poll}<b>${p.quiz ? 'آزمونک تازه' : 'نظرسنجی تازه'}</b>${btnIcon('ppop-x', IC.clear, 'بستن')}</div><p>${esc(p.q)}</p>
+      ${p.type === 'text' ? '<button type="button" class="btn primary" data-lv="ppop-open">پاسخ دادن</button>' : `<div class="lv-ppo">${p.opts.map((op, i) => `<button type="button" class="btn" data-lv="vote" data-i="${i}">${esc(op)}</button>`).join('')}</div>`}`;
+    $room().appendChild(el); setTimeout(() => el.querySelector('.lv-ppo button, [data-lv="ppop-open"]')?.focus(), 50);
+  }
+  function vote(v) { const p = R.poll; if (!p || p.closed) return; pollPop(null); if (R.myVote[p.id] == null) toast('پاسخ شما ثبت شد.'); R.myVote[p.id] = v; send({ t: 'vote', id: p.id, sid: R.me.sid, v }); renderSide('poll'); }
 
   /* ---- chat, notes, reactions, status ---- */
   function sendChat(text) {
@@ -1101,7 +1173,7 @@ const LiveClass = (() => {
   }
   function depart(key) {
     const v = R.people.get(key); if (!v) return; R.people.delete(key);
-    const p = R.peers.get(key); p?.pc?.close(); p?.up?.close(); R.peers.delete(key);
+    const p = R.peers.get(key); p?.pc?.close(); p?.up?.close(); R.peers.delete(key); hear(key, null);
     if (R.presenter === key) R.presenter = null;
     if (v.sid && R.x.att[v.sid]?.since) { const a = R.x.att[v.sid]; a.mins = (a.mins || 0) + Math.max(1, Math.round((Date.now() - a.since) / 60000)); a.last = nowIso(); delete a.since; saveSoon(); }
   }
@@ -1191,12 +1263,12 @@ const LiveClass = (() => {
     ice(m) { if (m.from) addIce(R.peers.get(m.from)?.pc, m.c); },
     async 'up-offer'(m) {
       if (!R.people.has(m.from)) return; const p = peer(m.from); p.up?.close(); const pc = p.up = new RTCPeerConnection();
-      pc.ontrack = e => { p.stream = e.streams[0]; R.recMix?.add(p.stream); renderTiles(); };
+      pc.ontrack = e => { p.stream = e.streams[0]; R.recMix?.add(p.stream); hear(m.from, p.stream); renderTiles(); };
       pc.onicecandidate = e => e.candidate && send({ t: 'up-ice', to: m.from, c: e.candidate.toJSON() });
       await pc.setRemoteDescription(m.sdp); flushIce(pc); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'up-answer', to: m.from, sdp: pc.localDescription.toJSON() });
     },
     'up-ice'(m) { if (m.from) addIce(R.peers.get(m.from)?.up, m.c); },
-    'up-none'(m) { const p = R.peers.get(m.from); if (p) { p.up?.close(); p.up = null; p.stream = null; renderTiles(); } },
+    'up-none'(m) { hear(m.from, null); const p = R.peers.get(m.from); if (p) { p.up?.close(); p.up = null; p.stream = null; renderTiles(); } },
     media(m) { const v = R.people.get(m.from); if (v) { v.mic = m.mic; v.cam = m.cam; sendPeople(); renderSide('users'); } },
     hand(m) { const v = R.people.get(m.from); if (!v) return; v.hand = m.up ? Date.now() : 0; if (m.up) { if (v.sid) st(v.sid).hands++; beep(700); toast(`${v.name} دستش را بالا برد.`); } sendPeople(); renderSide('users'); },
     react(m) { const v = R.people.get(m.from); if (!v) return; v.react = m.e; v.reactAt = Date.now(); if (m.e && v.sid) st(v.sid).reacts++; sendPeople(); renderSide('users'); },
@@ -1221,7 +1293,7 @@ const LiveClass = (() => {
       R.cfg = m.cfg; R.notes = m.notes || ''; R.notesBy = m.notesBy || ''; R.poll = m.poll; R.timer = m.timer; R.recOn = m.rec; R.ext = m.ext; renderExt();
       R.mainView = m.view; if (!R.room) setView(m.view);
       const rr = $r('.lv-rec-on'); if (rr) rr.hidden = !R.recOn;
-      applyLocks(); renderAll();
+      applyLocks(); renderAll(); if (R.poll && !R.poll.closed && R.myVote[R.poll.id] == null) pollPop(R.poll);
       if (R.mic || R.cam) upOffer(); else if (!R.cfg.joinMuted && !R.cfg.locks.mic && !R.triedMic) { R.triedMic = true; toggleMic(); }
     },
     people(m) {
@@ -1240,7 +1312,8 @@ const LiveClass = (() => {
     ext(m) { R.ext = m.ext; renderExt(); if (R.ext && R.view === 'ext') syncExt(); },
     'ext-ctl'(m) { if (R.ext) { Object.assign(R.ext, { playing: m.playing, t: m.t, at: m.at }); syncExt(); } },
     chat(m) { addChat(R.main, m.m); }, 'chat-clear'() { R.main.chat.length = 0; renderSide('chat'); },
-    poll(m) { const was = R.poll?.id; R.poll = m.poll; if (m.poll && !m.poll.closed && m.poll.id !== was && R.side !== 'poll') { openSide('poll'); beep(820); toast('نظرسنجی تازه'); } else renderSide('poll'); },
+    poll(m) { const was = R.poll?.id; R.poll = m.poll; if (m.poll && !m.poll.closed && m.poll.id !== was) pollNotice(m.poll); else if (!m.poll || m.poll.closed) { pollPop(null); const p = m.poll, v = p && R.myVote[p.id];
+      if (p?.closed && p.quiz && v != null && !p.told) { p.told = true; toast(v === p.correct ? 'آزمونک تمام شد: پاسخ شما درست بود.' : `آزمونک تمام شد؛ پاسخ درست: ${p.opts[p.correct]}`); } } renderSide('poll'); },
     cfg(m) { R.cfg = m.cfg; applyLocks(); },
     async offer(m) {
       R.pc?.close(); R.rCam = R.rScreen = null; const pc = R.pc = new RTCPeerConnection();
@@ -1257,6 +1330,7 @@ const LiveClass = (() => {
     notes(m) { setNotes(m.text, m.by); },
     rec(m) { R.recOn = m.on; const rr = $r('.lv-rec-on'); if (rr) rr.hidden = !m.on; },
     fly(m) { fly(m.e); },
+    speak(m) { R.heard = m.keys; },
     breakout(m) { const r = m.br.rooms.find(x => x.keys.includes(R.me.key)); if (r) enterRoom(r, m.br.until); },
     'br-time'(m) { if (R.room) R.room.until = m.until; },
     'br-msg'(m) { toast(`پیام معلم: ${m.text}`); beep(700); const sp = R.room?.sp || R.main; addChat(sp, { id: rid(), sys: true, text: `پیام معلم به همهٔ اتاق‌ها: ${m.text}`, at: nowIso() }); },
@@ -1299,7 +1373,7 @@ const LiveClass = (() => {
     ptype: b => { const f = pf(), t = PTYPES.find(p => p[0] === b.dataset.k); f.type = t[0]; f.opts = t[2].slice(); f.correct = 0; if (f.type === 'text') f.quiz = false; renderSide('poll'); },
     'popt-add': () => { pf().opts.push(''); renderSide('poll'); }, 'poll-close': () => pollClose(), 'poll-board': () => pollBoard(),
     'poll-new': () => { R.poll = null; send({ t: 'poll', poll: null }); renderSide('poll'); },
-    vote: b => vote(+b.dataset.i), unmute: b => { const v = $r('.lv-ext video'); if (v) { v.muted = false; b.hidden = true; } },
+    vote: b => vote(+b.dataset.i), 'ppop-x': () => pollPop(null), 'rest-x': () => $r('.lv-rest')?.remove(), 'ppop-open': () => { pollPop(null); openSide('poll'); $r('#lv-pans')?.focus(); }, unmute: b => { const v = $r('.lv-ext video'); if (v) { v.muted = false; b.hidden = true; } },
   };
   function onClick(e) {
     if (!R) return;
@@ -1369,9 +1443,10 @@ const LiveClass = (() => {
     [R.cam, R.mic, R.screen].forEach(s => s?.getTracks().forEach(t => t.stop()));
     R.peers.forEach(p => { p.pc?.close(); p.up?.close(); }); R.pc?.close(); R.up?.close();
     R.br?.rooms.forEach(r => r.chan.close()); R.room?.chan.close();
-    clearInterval(R.tickT); clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
+    clearInterval(R.tickT); clearInterval(R.vadT); R.vad?.ac?.close().catch(() => {}); clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
     removeEventListener('beforeunload', unload); document.removeEventListener('keydown', onKey);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    if (R.title0) document.title = R.title0;
     $room()?.remove(); document.body.classList.remove('lv-open');
     const o = R.o; R = null; if (announce) o.render();
   }
@@ -1391,5 +1466,8 @@ const LiveClass = (() => {
     if (name === 'lv-join') return open(c, o, x, o.as());
   }
 
-  return { card, tab, act, active: () => !!R };
+  // Classes on air now for a student, across every subject (the home page's quick entry).
+  const onAirFor = (x, s) => Object.entries(x.classroom || {}).flatMap(([sub, c]) => (c.live?.sessions || [])
+    .filter(v => onAir(v) && (!v.cls || v.cls === s.cls)).map(v => ({ sub, id: v.id, title: v.title, startedAt: v.startedAt })));
+  return { card, tab, act, onAirFor, active: () => !!R };
 })();

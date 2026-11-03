@@ -890,7 +890,9 @@ const Classroom = ctx => {
   }
   // Opens one item of a subject in the student's view (from the student's home page).
   const openItem = (sub, id) => { state.sub = sub; state.item = id; state.tab = 'course'; };
-  return { viewOf: { online: 'online' }, pages: { online }, act, bind, feed, workOf, openItem };
+  // Quick entry from the home page: open the course, then the live room on top of it.
+  const joinLive = (sub, id) => { openItem(sub, ''); location.hash = ctx.hrefOf('online'); setTimeout(() => { if (state.sub === sub) LiveClass.act('lv-join', { dataset: { id } }, C(), O()); }, 120); };
+  return { viewOf: { online: 'online' }, pages: { online }, act, bind, feed, workOf, openItem, joinLive };
 };
 
 // The course of one subject, made on first use. Older data moves in once: each subject's online-class link and assignments

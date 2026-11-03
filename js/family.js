@@ -118,7 +118,11 @@ const Family = ctx => {
       ${st && st.items.length ? `<ul class="fm-list">${st.items.map(i => `<li class="${st.done[i.id] ? 'past' : ''}"><span class="tile tone-${toneOf(i.subject)}">${subjIcon(i.subject)}</span><span class="fm-l"><b>${esc(i.subject)}</b><span class="muted small">${dg(i.from)} تا ${dg(i.to)} · ${esc(i.task)}</span></span>${st.done[i.id] ? '<span class="tag ok">انجام شد</span>' : ''}</li>`).join('')}</ul>`
         : empty(!st ? (isParent() ? 'هنوز برنامهٔ مطالعه‌ای ساخته نشده.' : 'هنوز برنامهٔ مطالعه نساخته‌اید؛ ساعت‌های مطالعه‌تان را خودتان بچینید.') : 'برای امروز بازهٔ مطالعه‌ای نیست.')}`,
       `<a class="small" href="${hrefOf('mystudy')}">${isParent() ? 'همه' : st ? 'برنامهٔ من' : 'ساختن برنامه'}</a>`);
-    return who(s) + kpis + meet + `<div class="grid g2">${classes}${todo}</div><div class="grid g2">${study}${marks}</div>${news}`;
+    const lv = isParent() || locked('acad.lms') || typeof LiveClass === 'undefined' ? [] : LiveClass.onAirFor(data(), s);
+    const liveNow = lv.map(v => `<div class="card fm-live"><span class="tile tone-rose" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></span>
+      <div class="fm-l"><b><span class="fm-live-dot"></span>کلاس آنلاین ${esc(v.sub)} در حال برگزاری است</b><span class="muted small">${esc(v.title)}${v.startedAt ? ` · از ساعت ${dg(new Date(v.startedAt).toTimeString().slice(0, 5))}` : ''}</span></div>
+      <button type="button" class="btn primary" data-act="fm-live" data-sub="${esc(v.sub)}" data-id="${esc(v.id)}">ورود سریع</button></div>`).join('');
+    return who(s) + liveNow + kpis + meet + `<div class="grid g2">${classes}${todo}</div><div class="grid g2">${study}${marks}</div>${news}`;
   }
   function workLi(w) {
     const late = !w.done && w.at && w.at.slice(0, 10) < today;
@@ -191,6 +195,7 @@ const Family = ctx => {
 
   const act = {
     'mr-new': b => newRequest(b.dataset.to),
+    'fm-live': b => ctx.CL.joinLive(b.dataset.sub, b.dataset.id),
     'fm-open': b => { ctx.CL.openItem(b.dataset.sub, b.dataset.id); location.hash = hrefOf('online'); },
     'fm-card-pdf': () => { const el = document.getElementById('card-sheet'); if (el) UI.pdf(el.cloneNode(true), `کارنامه-${me().name}`); },
     'fm-disc-pdf': () => { const el = document.getElementById('rc-sheet'); if (el) UI.pdf(el.cloneNode(true), `کارنامه-انضباطی-${me().name}`); },
