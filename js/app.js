@@ -388,28 +388,7 @@
     const i = S().invoices.find(x => x.id === b.dataset.paid); i.status = 'paid'; i.paidAt = Store.today(); Store.save(); toast('پرداخت ثبت شد.'); render();
   });
 
-  /* ---------------- roles & settings ---------------- */
-  // Which school roles may use which module, per school. Rows are the modules the school pages use;
-  // a dash means that role has no page for that module.
-  let accSchool = '';
-  const SCHOOL_ROLE_IDS = ['principal', 'deputy', 'exec', 'nazem', 'counselor', 'teacher', 'finance'];
-  function rolesView() {
-    const schools = S().schools; if (!schools.some(x => x.id === accSchool)) accSchool = schools[0]?.id || '';
-    const sc = Store.school(accSchool), roles = SCHOOL_ROLE_IDS.filter(r => NAV[r]);
-    const uses = r => new Set(NAV[r].hubs.flatMap(h => h.pages.map(p => p[2]).filter(Boolean)));
-    const mods = [...new Set(roles.flatMap(r => [...uses(r)]))].map(id => C.byId(id)).filter(Boolean);
-    const groups = C.groups.filter(g => mods.some(m => m.group === g.id));
-    return `<p class="note">برای هر مدرسه تعیین کنید هر نقش به کدام ماژول دسترسی دارد. تیک برداشته‌شده یعنی آن نقش آن بخش را نمی‌بیند (حتی اگر مدرسه آن را خریده باشد). «—» یعنی آن نقش صفحه‌ای برای آن ماژول ندارد.</p>
-      <div class="row" style="margin:12px 0"><label class="small muted" for="acc-s">مدرسه</label><select class="input" id="acc-s" style="width:auto">${schools.map(x => `<option value="${x.id}" ${x.id === accSchool ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
-      <div class="card"><div class="table-wrap"><table class="acc-table"><thead><tr><th>ماژول</th>${roles.map(r => `<th>${esc(NAV[r].name)}</th>`).join('')}</tr></thead>
-        ${groups.map(g => `<tbody><tr class="acc-g"><th colspan="${roles.length + 1}">${esc(g.name)}</th></tr>
-          ${mods.filter(m => m.group === g.id).map(m => `<tr><td>${esc(m.name)}${Store.isOn(sc, m.id) ? '' : ' <span class="tag grey">خریده نشده</span>'}</td>${roles.map(r => uses(r).has(m.id)
-            ? `<td><input type="checkbox" data-acc="${r}|${m.id}" ${Store.canUse(sc, r, m.id) ? 'checked' : ''} aria-label="${esc(NAV[r].name)}: ${esc(m.name)}"></td>` : '<td class="muted">—</td>').join('')}</tr>`).join('')}</tbody>`).join('')}</table></div></div>`;
-  }
-  function bindRoles() {
-    const sel = document.getElementById('acc-s'); if (sel) sel.onchange = () => { accSchool = sel.value; render(); };
-    document.querySelectorAll('[data-acc]').forEach(c => c.onchange = () => { const [r, m] = c.dataset.acc.split('|'); Store.setAccess(accSchool, r, m, c.checked); UI.toast(c.checked ? 'دسترسی داده شد.' : 'دسترسی برداشته شد.'); });
-  }
+  /* ---------------- settings ---------------- */
   function settingsView() {
     return `<div class="card"><h2>نام محصول</h2><div class="row"><input class="input" id="pn" aria-label="نام محصول" value="${esc(S().productName)}" style="flex:1;min-width:200px"><button class="btn primary" id="save-pn">ذخیره</button></div>
         <p class="muted small">نام فعلی موقت است؛ هر وقت نام نهایی را انتخاب کردید اینجا عوضش کنید.</p></div>
@@ -451,7 +430,6 @@
     schools: { t: 'مدرسه‌ها', v: schoolsView },
     requests: { t: 'درخواست‌ها', v: requestsView, b: bindRequests },
     invoices: { t: 'صورت‌حساب‌ها', v: invoicesView },
-    roles: { t: 'دسترسی نقش‌ها به ماژول‌ها', v: rolesView, b: bindRoles },
     settings: { t: 'تنظیمات', v: settingsView, b: bindSettings },
   };
   let lastRoute = '';

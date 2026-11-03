@@ -661,8 +661,28 @@
         }).join('')}</table></div></div>`).join('')}`;
   }
 
+  /* ---------------- principal: role access ---------------- */
+  // Which role uses which module of the school. The owner only decides what the school has bought; the principal
+  // decides who uses it. A dash means that role has no page for the module.
+  const ACC_ROLES = ['principal', 'deputy', 'exec', 'nazem', 'counselor', 'teacher', 'finance'];
+  function access() {
+    const s = school(), roles = ACC_ROLES.filter(r => NAV[r]);
+    const uses = r => new Set(NAV[r].hubs.flatMap(h => h.pages.map(p => p[2]).filter(Boolean)));
+    const mods = [...new Set(roles.flatMap(r => [...uses(r)]))].map(id => C.byId(id)).filter(Boolean);
+    const bought = mods.filter(m => Store.isOn(s, m.id)), off = mods.filter(m => !Store.isOn(s, m.id));
+    const groups = C.groups.filter(g => mods.some(m => m.group === g.id));
+    const cell = (r, m) => !uses(r).has(m.id) ? '<td class="muted">—</td>'
+      : `<td><input type="checkbox" data-acc="${r}|${m.id}" ${Store.canUse(s, r, m.id) ? 'checked' : ''} ${!Store.isOn(s, m.id) || r === 'principal' ? 'disabled' : ''} aria-label="${esc(NAV[r].name)}: ${esc(m.name)}"></td>`;
+    return `<div class="grid g3">${kpi('ماژول‌های خریده‌شده', fa(bought.length), `از ${fa(mods.length)} ماژول صفحه‌دار`, '', 'teal')}
+        ${kpi('نقش‌ها', fa(roles.length), '', '', 'blue')}
+        ${kpi('خریده نشده', fa(off.length), off.length ? 'درخواست از «اشتراک و ماژول‌ها»' : 'همه خریده شده', off.length ? hrefOf('subscription') : '', 'amber')}</div>
+      <div class="card"><div class="table-wrap" tabindex="0" role="region" aria-label="دسترسی نقش‌ها"><table class="acc-table"><thead><tr><th>ماژول</th>${roles.map(r => `<th>${esc(NAV[r].name)}</th>`).join('')}</tr></thead>
+        ${groups.map(g => `<tbody><tr class="acc-g"><th colspan="${roles.length + 1}">${esc(g.name)}</th></tr>
+          ${mods.filter(m => m.group === g.id).map(m => `<tr class="${Store.isOn(s, m.id) ? '' : 'acc-off'}"><td>${esc(m.name)}${Store.isOn(s, m.id) ? '' : ' <span class="tag grey">خریده نشده</span>'}</td>${roles.map(r => cell(r, m)).join('')}</tr>`).join('')}</tbody>`).join('')}</table></div></div>`;
+  }
+
   /* ---------------- frame ---------------- */
-  const PAGES = { students, sessions, appts, follow, obs: obsView, analytics, timetable, journal, grades, family, familyAppts, subscription, ureq: ureqPage };
+  const PAGES = { students, sessions, appts, follow, obs: obsView, analytics, timetable, journal, grades, family, familyAppts, subscription, access, ureq: ureqPage };
   const EXT = SchoolModules({ data, org, save, role, today, school, student, className, sLink, sAvatar, studentOptions, kpi, empty,
     render: () => render(), WHO, uid: D.uid, shift: D.shift, D, actor: () => cx.actor, readOnly: () => cx.space, gradeOptions });
   Object.assign(PAGES, EXT.pages);
@@ -842,6 +862,7 @@
       if (v == null) delete g.scores[i.dataset.score]; else g.scores[i.dataset.score] = v;
       save(); toast('نمره ذخیره شد.');
     });
+    document.querySelectorAll('[data-acc]').forEach(c => c.onchange = () => { const [r, m] = c.dataset.acc.split('|'); Store.setAccess(school().id, r, m, c.checked); toast(c.checked ? 'دسترسی داده شد.' : 'دسترسی برداشته شد.'); });
     EXT.bind(); TE.bind(); CN.bind(); GR.bind(); LR.bind(); CL.bind(); NZ.bind(); CM.bind(); AD.bind(); PR.bind(); FM.bind();
     fitDash();
   }

@@ -509,3 +509,5 @@ html[data-wm="top"] .topbar::before { content: ''; position: absolute; inset: 0;
 .scard .s-sess { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: 100%; }
 .scard .s-sess > span { font-size: 12px; color: var(--brand-ink); background: var(--brand2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 #l-hint:empty { display: none; }
+.acc-table tr.acc-off td:first-child { color: var(--ink3); }
+.acc-table input[type=checkbox]:disabled { opacity: .45; }

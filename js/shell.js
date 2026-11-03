@@ -37,7 +37,7 @@ const NAV = {
     { id: 'overview', label: 'نمای کلی', icon: 'home', tone: 'teal', desc: 'وضعیت فروش، درخواست‌ها و اشتراک‌ها در یک نگاه', pages: [['dashboard', 'داشبورد']] },
     { id: 'catalog', label: 'کاتالوگ', icon: 'layers', tone: 'violet', desc: 'آنچه می‌فروشید: ماژول‌ها، بسته‌ها و قیمت‌ها', pages: [['modules', 'ماژول‌ها'], ['plans', 'بسته‌ها و قیمت‌ها'], ['map', 'نقشهٔ ادغام سه سامانه']] },
     { id: 'schools', label: 'مدرسه‌ها', icon: 'building', tone: 'blue', desc: 'مشتری‌ها، فعال‌سازی ماژول، درخواست‌ها و صورت‌حساب', pages: [['schools', 'مدرسه‌ها'], ['requests', 'درخواست‌ها'], ['invoices', 'صورت‌حساب‌ها']] },
-    { id: 'settings', label: 'تنظیمات', icon: 'settings', tone: 'amber', desc: 'نقش‌های مدرسه و تنظیمات سامانه', pages: [['roles', 'دسترسی نقش‌ها'], ['settings', 'تنظیمات']] },
+    { id: 'settings', label: 'تنظیمات', icon: 'settings', tone: 'amber', desc: 'تنظیمات سامانه', pages: [['settings', 'تنظیمات']] },
   ] },
   principal: { name: 'مدیر مدرسه', short: 'مدیر', home: 'desk', hubs: [
     { id: 'edu', label: 'آموزشی', icon: 'book', tone: 'blue', desc: 'برنامه، حضور، کارنامه و کیفیت تدریس در همهٔ پایه‌ها',
@@ -49,8 +49,8 @@ const NAV = {
     { id: 'admin', label: 'اداری و مالی', icon: 'building', tone: 'rose', desc: 'پذیرش دانش‌آموز و امور استخدام',
       pages: [['enroll', 'پذیرش دانش‌آموز', 'fin.enrollment'], ['hire', 'امور استخدام', 'hr.recruit']] },
     // Opened from the user menu (beside sign-out), not from the rail.
-    { id: 'settings', label: 'تنظیمات مدرسه', icon: 'settings', tone: 'slate', rail: false, desc: 'نمودار سازمانی، کاربران و نقش‌ها، اشتراک ماژول‌ها',
-      pages: [['orgchart', 'نمودار سازمانی'], ['users', 'کاربران و نقش‌ها'], ['subscription', 'اشتراک و ماژول‌ها']] },
+    { id: 'settings', label: 'تنظیمات مدرسه', icon: 'settings', tone: 'slate', rail: false, desc: 'نمودار سازمانی، کاربران و نقش‌ها، دسترسی نقش‌ها، اشتراک ماژول‌ها',
+      pages: [['orgchart', 'نمودار سازمانی'], ['users', 'کاربران و نقش‌ها'], ['access', 'دسترسی نقش‌ها'], ['subscription', 'اشتراک و ماژول‌ها']] },
   ] },
   counselor: { name: 'معلم راهنما', short: 'معلم راهنما', home: 'overview', noHome: true, hubs: [
     { id: 'overview', label: 'نمای کلی', icon: 'home', tone: 'teal', desc: 'یادآورهای من و برنامهٔ روز من و کلاس‌ها',
