@@ -308,7 +308,8 @@
   // The school on a Neshan map, loaded when the contact section comes near (its library is large).
   const geo = SITE.contact.geo, mapEl = document.getElementById('nmap');
   if (geo && mapEl) {
-    const NS = 'https://cdn.jsdelivr.net/npm/@neshan-maps-platform/leaflet@1.0.8/dist/leaflet';
+    // Neshan's own server is quickest from Iran; the same build on jsDelivr is the fallback.
+    const NS = ['https://static.neshan.org/sdk/leaflet/v1.9.4/neshan-sdk/v1.0.8/index', 'https://cdn.jsdelivr.net/npm/@neshan-maps-platform/leaflet@1.0.8/dist/leaflet'];
     const fail = () => { mapEl.innerHTML = `<p>${esc(SITE.contact.address)}</p><p class="muted small">نقشه بارگذاری نشد؛ از دکمهٔ «مسیریابی با نشان» استفاده کنید.</p>`; };
     let wait;
     const draw = () => {
@@ -320,9 +321,10 @@
         L.marker([geo.lat, geo.lng], { icon: pin, title: geo.label, alt: geo.label }).addTo(map);
       } catch { fail(); }
     };
-    const load = () => {
-      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = NS + '.css'; document.head.appendChild(css);
-      const js = document.createElement('script'); js.src = NS + '.js'; js.onload = draw; js.onerror = fail; document.head.appendChild(js);
+    const load = (i = 0) => {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = NS[i] + '.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.src = NS[i] + '.js'; js.onload = draw; js.onerror = () => { css.remove(); if (NS[i + 1]) load(i + 1); else fail(); }; document.head.appendChild(js);
+      if (i) return;
       wait = setTimeout(() => { if (typeof L === 'undefined') fail(); }, 10000);
     };
     const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { io.disconnect(); load(); } }, { rootMargin: '400px' }); io.observe(mapEl);
