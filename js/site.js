@@ -310,7 +310,9 @@
   if (geo && mapEl) {
     const NS = 'https://cdn.jsdelivr.net/npm/@neshan-maps-platform/leaflet@1.0.8/dist/leaflet';
     const fail = () => { mapEl.innerHTML = `<p>${esc(SITE.contact.address)}</p><p class="muted small">نقشه بارگذاری نشد؛ از دکمهٔ «مسیریابی با نشان» استفاده کنید.</p>`; };
+    let wait;
     const draw = () => {
+      clearTimeout(wait);
       try {
         mapEl.innerHTML = '';
         const map = new L.Map(mapEl, { key: geo.key, maptype: 'neshan', poi: true, traffic: false, center: [geo.lat, geo.lng], zoom: 16, scrollWheelZoom: false });
@@ -321,6 +323,7 @@
     const load = () => {
       const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = NS + '.css'; document.head.appendChild(css);
       const js = document.createElement('script'); js.src = NS + '.js'; js.onload = draw; js.onerror = fail; document.head.appendChild(js);
+      wait = setTimeout(() => { if (typeof L === 'undefined') fail(); }, 10000);
     };
     const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { io.disconnect(); load(); } }, { rootMargin: '400px' }); io.observe(mapEl);
   }
