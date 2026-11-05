@@ -1457,7 +1457,7 @@ const LiveClass = (() => {
     [...R.people.keys()].forEach(depart); Object.values(x.att).forEach(a => { delete a.since; });
     x.status = 'done'; x.endedAt = nowIso(); x.hostAt = 0; persist();
     send({ t: 'end', title: x.title });
-    leave(false); o.render(); toast(`کلاس تمام شد · ${fa(present(x))} نفر حاضر بودند.`);
+    leave(false); if (o.after) o.after(x.id); else o.render(); toast(`کلاس تمام شد · ${fa(present(x))} نفر حاضر بودند.`);
   }
   function leave(announce) {
     if (!R) return;
@@ -1484,7 +1484,7 @@ const LiveClass = (() => {
     if (name === 'lv-dash') return dashboard(x, o);
     if (name === 'lv-rec') return x.recs.length > 1 ? recsModal(c, o) : playRec(x, 0);
     if (name === 'lv-recs') return recsModal(c, o);
-    if (name === 'lv-finish') return UI.ask('پایان جلسه', `جلسهٔ «${x.title}» تمام‌شده ثبت شود؟ حضور و گفت‌وگو در گزارش جلسه می‌ماند.`, 'پایان جلسه').then(ok => { if (!ok) return; finish(x); o.save(); o.render(); toast('جلسه به پایان رسید.'); });
+    if (name === 'lv-finish') return UI.ask('پایان جلسه', `جلسهٔ «${x.title}» تمام‌شده ثبت شود؟ حضور و گفت‌وگو در گزارش جلسه می‌ماند.`, 'پایان جلسه').then(ok => { if (!ok) return; finish(x); o.save(); if (o.after) o.after(x.id); else o.render(); toast('جلسه به پایان رسید.'); });
     if (name === 'lv-del') return UI.ask('حذف جلسه', `جلسهٔ «${x.title}» حذف شود؟`, 'حذف کن').then(ok => { if (!ok) return; (x.recs || []).forEach(q => IDB.del('rec:' + q.id)); live(c).sessions = live(c).sessions.filter(y => y.id !== x.id); o.save(); o.render(); });
     if (name === 'lv-now') { const s = blank({ title: `کلاس ${o.sub}`, date: today(), from: hm(), to: '', cls: null }); live(c).sessions.push(s); o.save(); return open(c, o, s, null); }
     if (name === 'lv-join') return open(c, o, x, o.as());
@@ -1493,5 +1493,10 @@ const LiveClass = (() => {
   // Classes on air now for a student, across every subject (the home page's quick entry).
   const onAirFor = (x, s) => Object.entries(x.classroom || {}).flatMap(([sub, c]) => (c.live?.sessions || [])
     .filter(v => onAir(v) && (!v.cls || v.cls === s.cls)).map(v => ({ sub, id: v.id, title: v.title, startedAt: v.startedAt })));
-  return { card, tab, act, onAirFor, active: () => !!R };
+  // One ended session in numbers, for the page that opens after the class (classroom.js).
+  function brief(c, o, id) {
+    const x = sessOf(c, id); if (!x) return null; const r = roster(o, x);
+    return { x, mins: mins(x), total: r.length, present: r.filter(s => x.att?.[s.id]).length, absent: r.filter(s => !x.att?.[s.id]), chat: (x.chat || []).filter(m => !m.sys).length, polls: (x.polls || []).length, recs: (x.recs || []).length, cls: clsName(o, x.cls) };
+  }
+  return { card, tab, act, onAirFor, brief, active: () => !!R };
 })();

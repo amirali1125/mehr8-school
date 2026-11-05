@@ -15,7 +15,7 @@ const Classroom = ctx => {
   const d = () => data();
   const ro = () => ctx.readOnly();
   const today = J.todayIso();
-  const state = { sub: '', tab: 'course', item: '', as: '', edit: false, grp: '', gbCls: '', col: new Set(), bulk: false, picked: new Set() };
+  const state = { sub: '', tab: 'course', item: '', after: '', as: '', edit: false, grp: '', gbCls: '', col: new Set(), bulk: false, picked: new Set() };
   const done = msg => { save(); close(); render(); if (msg) toast(msg); };
   const subjectsFor = () => ctx.role() === 'teacher' ? [D.TEACHER_SUBJECT] : d().termSubjects;
   const C = (sub = state.sub) => Classroom.course(d(), sub);
@@ -339,6 +339,7 @@ const Classroom = ctx => {
     const asSel = `<label class="row small cr-as">از نگاه دانش‌آموز <select class="input" id="cr-as"><option value="">نمای معلم</option>${ctx.studentOptions(state.as)}</select></label>`;
     const head = `<div class="spread" style="margin-bottom:12px"><div class="row"><button class="btn sm" data-act="cl-back">‹ همهٔ درس‌ها</button><h2 style="margin:0;font-size:20px">${esc(state.sub)}</h2></div>${ro() || state.forced ? '' : asSel}</div>`;
     if (s && state.forced) return head + studentCourse(s);
+    if (state.after && !ro()) { const a = afterPage(); if (a) return head + a; }
     if (s) return head + `<p class="note">صفحه را از نگاه <b>${esc(s.name)}</b> (${esc(className(s.cls))}) می‌بینید؛ کاری که اینجا انجام شود به نام او ثبت می‌شود.</p>` + studentCourse(s);
     const tabs = `<div class="tabs cr-tabs" role="tablist" aria-label="بخش‌های درس">${TABS.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-act="cl-tab" data-id="${k}">${l}${k === 'groups' ? ` (${fa(c.groups.length)})` : ''}</button>`).join('')}</div>`;
     let body;
@@ -352,7 +353,7 @@ const Classroom = ctx => {
     else {
       const ng = items().filter(i => i.type === 'assign').reduce((a, i) => a + needGrading(i).length, 0), allCol = c.secs.every(k => state.col.has(k.id));
       const bar = ro() ? '' : `<div class="spread cr-bar0"><div class="row">${ng ? `<span class="tag warn">${fa(ng)} ارسال نیازمند نمره</span>` : ''}<button class="btn sm" data-act="cl-col-all">${allCol ? 'باز شدن همه' : 'جمع شدن همه'}</button></div>
-        <button class="btn sm ${state.bulk ? 'primary' : ''}" data-act="cl-bulk" aria-pressed="${state.bulk}">${PEN} عملیات گروهی</button></div>`;
+        <div class="row"><button class="btn sm" data-act="cl-af-study" data-id="">مطالعهٔ پیشنهادی هفته</button><button class="btn sm ${state.bulk ? 'primary' : ''}" data-act="cl-bulk" aria-pressed="${state.bulk}">${PEN} عملیات گروهی</button></div></div>`;
       const bulk = state.bulk ? `<div class="cr-bulkbar" role="toolbar" aria-label="عملیات گروهی"><b>${fa(state.picked.size)} مورد انتخاب شده</b>
         <button class="btn sm" data-act="cl-bk-all">انتخاب همه</button><button class="btn sm" data-act="cl-bk-none">لغو انتخاب</button>
         <button class="btn sm" data-act="cl-bk-show" ${state.picked.size ? '' : 'disabled'}>نمایش</button><button class="btn sm" data-act="cl-bk-hide" ${state.picked.size ? '' : 'disabled'}>پنهان</button>
@@ -363,8 +364,82 @@ const Classroom = ctx => {
     }
     return head + tabs + body;
   }
+
+  /* ---------------- after an online class ---------------- */
+  // When the teacher ends a session the course page shows what usually comes next, one tap each: homework, the week's
+  // suggested study, marks and attendance, files, the session's report and the next session.
+  const WEEKDAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+  const AIC = {
+    study: SV('<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 2h13v-4M9 7h6M9 11h4"/>'),
+    marks: SV('<path d="M4 20h16M7 16V9M12 16V5M17 16v-4"/>'),
+    book: SV('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>'),
+    att: SV('<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 2v4M16 2v4M8 13l2.5 2.5L16 10"/>'),
+    report: SV('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>'),
+    dash: SV('<path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6"/>'),
+    rec: SV('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>'),
+    next: SV('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/>'),
+  };
+  const adviceOf = cls => D.adviceFor(d(), cls, today).find(a => a.sub === state.sub);
+  function afterPage() {
+    const b = LiveClass.brief(C(), O(), state.after); if (!b) { state.after = ''; return ''; }
+    const { x } = b, adv = adviceOf(x.cls), c = C(), ng = items().filter(i => i.type === 'assign').reduce((a, i) => a + needGrading(i).length, 0);
+    const qa = ({ act, id, href, tone, icon, title, sub }) => {
+      const inner = `<span class="tile" style="--tone-bg:var(--${tone}-bg);--tone-ink:var(--${tone})">${icon}</span><span class="cl-qa-t"><b>${title}</b><span class="small muted">${sub}</span></span>`;
+      return href ? `<a class="cl-qa" href="${href}">${inner}</a>` : `<button type="button" class="cl-qa" data-act="${act}"${id ? ` data-id="${esc(id)}"` : ''}>${inner}</button>`;
+    };
+    const group = (title, list) => `<section class="card cl-qa-g"><h3>${title}</h3><div class="cl-qa-grid">${list.filter(Boolean).map(qa).join('')}</div></section>`;
+    const open = c.items.filter(i => i.type === 'assign' && i.due && i.due >= K.now()).length;
+    return `<section class="card cl-after" aria-labelledby="cl-after-h"><div class="cl-after-head"><span class="tile" style="--tone-bg:var(--teal-bg);--tone-ink:var(--teal)">${SV('<path d="M20 6 9 17l-5-5"/>')}</span>
+        <div><h2 id="cl-after-h">کلاس «${esc(x.title)}» تمام شد</h2><p class="muted small">${esc(J.format(x.date))} · ${fa(b.mins)} دقیقه · ${esc(b.cls)}</p></div>
+        <button type="button" class="btn sm" data-act="cl-af-close">بازگشت به صفحهٔ درس</button></div>
+      <div class="cl-after-kpis"><span><b class="num">${fa(b.present)}</b> از ${fa(b.total)} حاضر</span><span><b class="num">${fa(b.chat)}</b> پیام</span><span><b class="num">${fa(b.polls)}</b> نظرسنجی</span>${b.recs ? `<span><b class="num">${fa(b.recs)}</b> ضبط</span>` : ''}</div>
+      ${b.absent.length ? `<div class="cl-absent"><b>غایبان این جلسه (${fa(b.absent.length)}):</b> ${b.absent.slice(0, 10).map(s => esc(s.name)).join('، ')}${b.absent.length > 10 ? `<details class="cl-absent-more"><summary>و ${fa(b.absent.length - 10)} نفر دیگر</summary>${b.absent.slice(10).map(s => esc(s.name)).join('، ')}</details>` : ''}</div>` : '<p class="cl-absent ok">همه حاضر بودند.</p>'}</section>`
+      + group('کار بعد از کلاس', [
+        { act: 'cl-af-hw', tone: 'rose', icon: TYPES.assign[2], title: 'ثبت تکلیف', sub: open ? `${fa(open)} تکلیف باز دارید` : 'با مهلت، نوع ارسال و نمره' },
+        { act: 'cl-af-study', id: x.cls || '', tone: 'violet', icon: AIC.study, title: 'مطالعهٔ پیشنهادی هفته', sub: adv ? `فعلاً ${fa(adv.mins)} دقیقه در هفته؛ ${adv.days.map(i => WEEKDAYS[i]).join('، ')}` : 'چند دقیقه، کدام روزها، چه چیزی' },
+        { act: 'cl-af-quiz', tone: 'violet', icon: TYPES.quiz[2], title: 'آزمون تازه', sub: 'چندگزینه‌ای با تصحیح خودکار' },
+        { act: 'cl-af-file', tone: 'teal', icon: TYPES.file[2], title: 'گذاشتن جزوه یا فایل', sub: 'تخته، اسلاید یا جزوهٔ امروز' }])
+      + group('نمره و حضور', [
+        { act: 'cl-af-grades', tone: 'amber', icon: AIC.book, title: 'نمره‌دهی تکلیف‌ها', sub: ng ? `${fa(ng)} ارسال منتظر نمره` : 'دفتر نمرهٔ این درس' },
+        { href: ctx.hrefOf('marks'), tone: 'blue', icon: AIC.marks, title: 'ثبت نمره', sub: 'پرسش کلاسی، مستمر و پایانی' },
+        { href: ctx.hrefOf('journal'), tone: 'teal', icon: AIC.att, title: 'حضور و غیاب', sub: b.absent.length ? `${fa(b.absent.length)} نفر در کلاس آنلاین نبودند` : 'دفتر حضور کلاس' }])
+      + group('همین جلسه', [
+        { act: 'lv-report', id: x.id, tone: 'blue', icon: AIC.report, title: 'گزارش جلسه', sub: 'حضور، گفت‌وگو، تخته و نظرسنجی‌ها' },
+        { act: 'lv-dash', id: x.id, tone: 'violet', icon: AIC.dash, title: 'داشبورد تحلیل یادگیری', sub: 'مشارکت هر دانش‌آموز' },
+        b.recs && { act: 'lv-rec', id: x.id, tone: 'rose', icon: AIC.rec, title: 'دیدن ضبط', sub: 'پخش و ذخیرهٔ ضبط جلسه' },
+        { act: 'lv-new', tone: 'teal', icon: AIC.next, title: 'برنامه‌ریزی جلسهٔ بعد', sub: 'روز، ساعت و کلاس' }]);
+  }
+  // The week's suggested study for this subject: shown on each student's «برنامهٔ مطالعهٔ من», who can lay it into their plan.
+  function studyModal(cls) {
+    const ws = D.weekStart(today), cur = adviceOf(cls), a = cur || { mins: 120, days: [0, 2, 4], topic: '', once: false };
+    modal(`<h2>مطالعهٔ پیشنهادی ${esc(state.sub)}</h2><p class="muted" style="margin-top:-6px">در «برنامهٔ مطالعهٔ من» هر دانش‌آموز دیده می‌شود و با یک دکمه در برنامه‌اش می‌نشیند.</p>
+      <label class="field"><span>کلاس</span><select class="input" id="sa-c">${d().classes.map(k => `<option value="${k.id}" ${k.id === cls ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}<option value="" ${cls ? '' : 'selected'}>همهٔ کلاس‌ها</option></select></label>
+      <label class="field"><span>مقدار مطالعه در هفته (دقیقه)</span><input class="input num" type="number" id="sa-m" min="15" max="1200" step="15" value="${a.mins}"></label>
+      <fieldset class="cr-fs sa-days"><legend class="small muted">روزهای پیشنهادی</legend>${WEEKDAYS.map((n, i) => `<label class="lv-chk"><input type="checkbox" data-sa-d="${i}" ${a.days.includes(i) ? 'checked' : ''}> ${n}</label>`).join('')}</fieldset>
+      <p class="small muted" id="sa-sum" aria-live="polite"></p>
+      <label class="field"><span>چه بخوانند و تمرین کنند</span><input class="input" id="sa-t" value="${esc(a.topic)}" placeholder="مثلاً مرور درس امروز و تمرین‌های صفحهٔ ۴۰ تا ۴۵"></label>
+      <fieldset class="scope"><legend class="small muted">این پیشنهاد برای کی است؟</legend>
+        <label class="scope-opt"><input type="radio" name="sa-sc" value="on" ${a.once ? '' : 'checked'}><span><b>از این هفته به بعد</b><span class="muted small">تا وقتی عوضش کنید، هر هفته همین می‌ماند.</span></span></label>
+        <label class="scope-opt"><input type="radio" name="sa-sc" value="once" ${a.once ? 'checked' : ''}><span><b>فقط همین هفته</b><span class="muted small">هفتهٔ ${esc(J.format(ws, false))}</span></span></label></fieldset>
+      <div class="row" style="margin-top:18px"><button class="btn primary" id="save">ثبت پیشنهاد</button>${cur ? '<button class="btn danger" id="stop">برداشتن پیشنهاد</button>' : ''}<button class="btn" data-close>انصراف</button></div>`, root => {
+      const days = () => [...root.querySelectorAll('[data-sa-d]:checked')].map(i => +i.dataset.saD);
+      const sum = () => { const m = +root.querySelector('#sa-m').value || 0, n = days().length; root.querySelector('#sa-sum').textContent = n && m ? `هر روز حدود ${fa(Math.round(m / n))} دقیقه، ${fa(n)} روز در هفته.` : ''; };
+      root.querySelectorAll('#sa-m, [data-sa-d]').forEach(i => i.addEventListener('input', sum)); sum();
+      const put = (mins, once) => {
+        const x = d(), c = root.querySelector('#sa-c').value || null; x.studyAdvice = (x.studyAdvice || []).filter(e => !(e.sub === state.sub && (e.cls || null) === c && e.week === ws));
+        x.studyAdvice.push({ id: D.uid('sa'), sub: state.sub, cls: c, week: ws, once, mins, days: days(), topic: (root.querySelector('#sa-t').value || '').trim(), by: me(), at: new Date().toISOString() });
+      };
+      root.querySelector('#save').onclick = () => {
+        const m = +root.querySelector('#sa-m').value;
+        if (!(m >= 15)) return UI.invalid('#sa-m', 'دست‌کم ۱۵ دقیقه بنویسید.');
+        if (!days().length) return UI.invalid('[data-sa-d]', 'دست‌کم یک روز را انتخاب کنید.');
+        put(m, root.querySelector('[name=sa-sc]:checked').value === 'once'); done('مطالعهٔ پیشنهادی ثبت شد؛ دانش‌آموزان در برنامهٔ مطالعه‌شان می‌بینند.');
+      };
+      root.querySelector('#stop')?.addEventListener('click', () => { put(0, false); done('پیشنهاد مطالعه از این هفته برداشته شد.'); });
+    });
+  }
   // What liveclass.js needs from this page.
-  const O = () => ({ sub: state.sub, save, render, ro: ro(), me, empty, className, students: () => d().students, classes: () => d().classes, as: () => state.as ? student(state.as) : null,
+  const O = () => ({ sub: state.sub, after: id => { state.after = id; state.tab = 'course'; state.item = ''; render(); scrollTo(0, 0); }, save, render, ro: ro(), me, empty, className, students: () => d().students, classes: () => d().classes, as: () => state.as ? student(state.as) : null,
     kpi: (l, v, sub, _h, tone) => `<div class="card kpi ${tone ? 'tone-' + tone : ''}"><div class="l">${esc(l)}</div><div class="v">${v}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>` });
   function studentCourse(s) {
     const c = C(), mine = c.items.filter(i => listedFor(i, s) && !secHidden(c.secs.find(k => k.id === (i.sec || 'gen')) || {}));
@@ -726,9 +801,13 @@ const Classroom = ctx => {
   const act = {
     // The desk's «تکلیف تازه»: open the teacher's class page and the assignment form.
     'cl-quick': () => { state.sub = subjectsFor()[0]; state.item = ''; state.as = ''; state.tab = 'course'; location.hash = ctx.hrefOf('online'); setTimeout(() => itemModal('assign'), 60); },
-    'cl-sub': b => { state.sub = b.dataset.id; state.item = ''; state.tab = 'course'; render(); },
-    'cl-back': () => { state.sub = ''; state.item = ''; render(); },
-    'cl-tab': b => { state.tab = b.dataset.id; render(); },
+    'cl-sub': b => { state.sub = b.dataset.id; state.item = ''; state.tab = 'course'; state.after = ''; render(); },
+    'cl-back': () => { state.sub = ''; state.item = ''; state.after = ''; render(); },
+    'cl-tab': b => { state.tab = b.dataset.id; state.after = ''; render(); },
+    'cl-af-close': () => { state.after = ''; render(); scrollTo(0, 0); },
+    'cl-af-hw': () => itemModal('assign', null, 'gen'), 'cl-af-quiz': () => itemModal('quiz', null, 'gen'), 'cl-af-file': () => itemModal('file', null, 'gen'),
+    'cl-af-study': b => studyModal(b.dataset.id || null),
+    'cl-af-grades': () => { state.after = ''; state.tab = 'grades'; render(); scrollTo(0, 0); },
     ...Object.fromEntries(['lv-new', 'lv-edit', 'lv-report', 'lv-dash', 'lv-rec', 'lv-recs', 'lv-finish', 'lv-del', 'lv-now', 'lv-join'].map(k => [k, b => LiveClass.act(k, b, C(), O())])),
     'cl-link': () => {
       const link = document.getElementById('on-link').value.trim();

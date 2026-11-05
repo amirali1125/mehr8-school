@@ -114,6 +114,37 @@ const Learning = ctx => {
     const help = isStudent() ? { draft: 'بازه‌ها را بسازید و بعد برای معلم راهنما بفرستید.', pending: 'معلم راهنما برنامه را می‌بیند و تأیید می‌کند.', approved: 'هر تغییر تازه دوباره به تأیید معلم راهنما می‌رسد.', returned: 'برنامه را با یادداشت معلم راهنما درست کنید و دوباره بفرستید.' }[st] : '';
     return `<div class="card sp-status st-${st}"><div class="row"><span class="tag ${t}">${l}</span>${help ? `<span class="small muted">${help}</span>` : ''}${btns ? `<span class="row sp-st-btns">${btns}</span>` : ''}</div>${note}</div>`;
   }
+  // The subject teachers' suggested study for the week (classroom.js), with how much of it the plan holds and the student
+  // has ticked. «چیدن در برنامه» opens a new slot on the next suggested day, already filled with the subject and the task.
+  const minsOf = i => { const [a, b] = [i.from, i.to].map(t => { const [h, m] = t.split(':'); return +h * 60 + +m; }); return Math.max(0, b - a); };
+  function adviceUse(p, a) {
+    const ws = D.weekStart(state.date); let plan = 0, did = 0;
+    if (p?.method === 'schedule') for (let k = 0; k < 7; k++) { const dt = D.shift(k, ws); itemsOn(p, dt).filter(i => i.subject === a.sub).forEach(i => { plan += minsOf(i); if (p.log[dt]?.done[i.id]) did += minsOf(i); }); }
+    return { plan, did };
+  }
+  function adviceCard(sid, p) {
+    const s = student(sid); if (!s) return '';
+    const list = D.adviceFor(d(), s.cls, state.date); if (!list.length) return '';
+    const ws = D.weekStart(state.date), sched = p?.method === 'schedule';
+    return `<section class="card sp-advice" aria-labelledby="sa-h"><div class="card-head"><h2 id="sa-h" style="margin:0">مطالعهٔ پیشنهادی دبیرها</h2><span class="muted small">هفتهٔ ${esc(J.format(ws, false))} تا ${esc(J.format(D.shift(6, ws), false))}</span></div>
+      <ul class="sa-list">${list.map(a => { const u = adviceUse(p, a), pct = Math.min(100, Math.round(u.did / a.mins * 100)), left = Math.max(0, a.mins - u.plan);
+        return `<li><div class="sa-l"><b>${esc(a.sub)}</b><span class="muted small">${esc(a.by || '')}${a.once ? ' · فقط این هفته' : ''}</span>
+            <span><b class="num">${fa(a.mins)}</b> دقیقه در هفته · ${a.days.map(i => esc(WEEK[i])).join('، ')}</span>${a.topic ? `<span class="small">${esc(a.topic)}</span>` : ''}</div>
+          ${sched ? `<div class="sa-p"><div class="sa-bar" role="progressbar" aria-label="مطالعهٔ ${esc(a.sub)}" aria-valuemin="0" aria-valuemax="${a.mins}" aria-valuenow="${Math.min(a.mins, u.did)}"><i style="width:${pct}%"></i></div>
+            <span class="small muted">${fa(u.did)} از ${fa(a.mins)} دقیقه انجام شد${left ? ` · ${fa(left)} دقیقه هنوز در برنامه نیست` : ' · همه در برنامه است'}</span></div>` : ''}
+          ${sched && left && !ro() && !fam() || sched && left && isStudent() ? `<button class="btn sm primary" data-act="sp-advice" data-id="${esc(a.id)}">چیدن در برنامه</button>` : ''}</li>`; }).join('')}</ul>
+      ${p && !sched ? '<p class="muted small" style="margin:6px 0 0">با روش «زمان‌بندی دقیق» این پیشنهادها با یک دکمه در برنامه می‌نشیند.</p>' : ''}</section>`;
+  }
+  // A slot for a suggestion: on the first suggested day from today (or this week's first) without that subject yet.
+  function adviceSlot(id) {
+    const s = student(state.sid), a = D.adviceFor(d(), s?.cls, state.date).find(x => x.id === id); if (!a) return;
+    const p = planW(state.sid), ws = D.weekStart(state.date), dates = a.days.map(i => D.shift(i, ws));
+    const free = dt => !itemsOn(p, dt).some(i => i.subject === a.sub);
+    state.date = dates.find(dt => dt >= today && free(dt)) || dates.find(free) || dates[0];
+    const per = Math.max(15, Math.min(180, Math.round(Math.max(0, a.mins - adviceUse(p, a).plan) / Math.max(1, dates.filter(free).length || 1) / 5) * 5));
+    const end = 16 * 60 + per, pad = n => String(n).padStart(2, '0');
+    render(); slotModal(null, { from: '16:00', to: `${pad(Math.min(23, Math.floor(end / 60)))}:${pad(end % 60)}`, subject: a.sub, task: a.topic || `مطالعهٔ ${a.sub}` });
+  }
   function splan() {
     const x = d();
     if (fam()) state.sid = ctx.sid();
@@ -122,7 +153,7 @@ const Learning = ctx => {
     const head = `<div class="card"><div class="row">${fam() ? `<b>${esc(student(sid)?.name || '')}</b>` : `<label class="small muted" for="sp-st">دانش‌آموز</label><select class="input" id="sp-st" style="min-width:200px">${ctx.studentOptions(sid)}</select>`}
         <div class="field" style="margin:0;min-width:180px">${J.field('sp-date', date, 'روز')}</div>
         ${p ? `<span class="tag ${methodOf(p.method)[2]}">${methodOf(p.method)[1]}</span>` : ''}</div></div>`;
-    const top = (fam() ? '' : pendingCard() + homeworkCalendar()) + head;
+    const top = (fam() ? '' : pendingCard() + homeworkCalendar()) + head + adviceCard(sid, p);
     if (!p) return top + `<div class="card empty-state"><p class="muted">${isStudent() ? 'هنوز برنامهٔ مطالعه نساخته‌اید. ساعت‌های مطالعه‌تان را خودتان بچینید؛ معلم راهنما می‌بیند و تأیید می‌کند.' : fam() ? 'هنوز برنامهٔ مطالعه‌ای ساخته نشده.' : `برای ${esc(student(sid)?.name || '')} هنوز روش مطالعه تعیین نشده.`}</p>
       ${ro() ? '' : isStudent() ? '<div class="row" style="justify-content:center"><button class="btn primary" data-act="sp-method" data-id="schedule">ساختن برنامهٔ مطالعه (ساعت به ساعت)</button></div>' : '<div class="row" style="justify-content:center"><button class="btn primary" data-act="sp-method" data-id="schedule">زمان‌بندی دقیق (ساعت به ساعت)</button><button class="btn" data-act="sp-method" data-id="timebox">تایم‌باکسینگ (بلوک‌های درسی)</button><button class="btn" data-act="sp-method" data-id="activity">جدول فعالیت‌های روزانه</button></div>'}</div>`;
     const week = [...Array(7)].map((_, i) => D.shift(i - 6, date));
@@ -151,8 +182,8 @@ const Learning = ctx => {
       ${trend}${p.method === 'activity' ? '<p class="muted small" style="margin:6px 0 0">ستون هر روز: ساعت‌های «مشغول درس» نسبت به سه ساعت.</p>' : ''}</div>` + body;
   }
   // Add or edit one slot. Every change asks once: this week only, or from this week on.
-  function slotModal(item) {
-    const p = planW(state.sid), w = wday(state.date), ws = D.weekStart(state.date), x = item || { from: '15:30', to: '16:30', subject: '', task: '' };
+  function slotModal(item, preset) {
+    const p = planW(state.sid), w = wday(state.date), ws = D.weekStart(state.date), x = item || { from: '15:30', to: '16:30', subject: '', task: '', ...preset };
     const wk = `${J.format(ws, false)} تا ${J.format(D.shift(6, ws), false)}`;
     modal(`<h2>${item ? 'ویرایش بازه' : 'بازهٔ تازه'} ـ ${esc(WEEK[w])}</h2><div class="grid g2" style="gap:0 12px">
       <label class="field"><span>از ساعت</span><input class="input num" type="time" id="sl-f" value="${esc(x.from)}"></label><label class="field"><span>تا ساعت</span><input class="input num" type="time" id="sl-t" value="${esc(x.to)}"></label></div>
@@ -203,6 +234,7 @@ const Learning = ctx => {
     'hwc-del': b => { const back = UI.drop(d().homework || [], h => h.id === b.dataset.id); save(); render(); UI.undo('تکلیف از تقویم حذف شد.', back, () => { save(); render(); }); },
     'sp-method': b => { const p = planW(state.sid); p.method = b.dataset.id; touched(p); save(); render(); },
     'sp-slot': () => slotModal(null),
+    'sp-advice': b => adviceSlot(b.dataset.id),
     'sp-slot-edit': b => { const p = planW(state.sid), it = (p.schedule[wday(state.date)] || []).find(i => i.id === b.dataset.id); if (it) slotModal(it); },
     'sp-send': () => { const p = planW(state.sid); if (!Object.values(p.schedule).flat().length) return toast('اول دست‌کم یک بازه بسازید.'); p.status = 'pending'; p.sentAt = new Date().toISOString(); p.review = null; save(); render(); toast('برنامه برای معلم راهنما فرستاده شد.'); },
     'sp-ok': b => { const p = planW(b.dataset.id); p.status = 'approved'; p.review = { note: '', at: new Date().toISOString() }; Object.values(p.schedule).flat().forEach(i => { i.ok = true; }); save(); render(); toast('برنامه تأیید شد.'); },

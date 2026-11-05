@@ -143,3 +143,25 @@
   .cr-tools { width: 100%; justify-content: flex-end; }
   .cr-as select { min-width: 0; max-width: 100%; }
 }
+
+/* The page after an online class: what comes next, one tap each (classroom.js afterPage) */
+.cl-after-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cl-after-head > div { flex: 1; min-width: 200px; }
+.cl-after-head h2 { margin: 0; font-size: 19px; }
+.cl-after-head p { margin: 2px 0 0; }
+.cl-after-head .tile, .cl-qa .tile { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--tone-bg); color: var(--tone-ink); }
+.cl-after-kpis { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 14px 0 4px; }
+.cl-after-kpis b { font-size: 20px; }
+.cl-absent { margin: 8px 0 0; line-height: 1.9; }
+.cl-absent.ok { color: var(--teal); }
+.cl-qa-g h3 { margin: 0 0 10px; font-size: 16px; }
+.cl-qa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.cl-qa { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 12px; min-height: 68px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; color: var(--ink); transition: border-color .15s, box-shadow .15s; }
+.cl-qa:hover { border-color: var(--brand); box-shadow: 0 2px 10px rgb(0 0 0 / .06); }
+.cl-qa:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cl-qa-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sa-days { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+@media (prefers-reduced-motion: reduce) { .cl-qa { transition: none; } }
+.cl-absent-more { display: inline; }
+.cl-absent-more summary { display: inline; cursor: pointer; color: var(--brand); font-weight: 700; }
+.cl-absent-more[open] summary { display: block; }

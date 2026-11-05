@@ -904,3 +904,12 @@ img.mz-av { object-fit: cover; background: var(--line); }
 .mr-body { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 320ms ease, opacity 320ms ease, margin 320ms ease; }
 .mr-body > span { overflow: hidden; min-height: 0; }
 .mz-rq.open .mr-body { grid-template-rows: 1fr; opacity: 1; margin-top: 4px; }
+
+/* «مطالعهٔ پیشنهادی دبیرها» on the study plan (learning.js) */
+.sp-advice .sa-list { list-style: none; margin: 0; padding: 0; }
+.sp-advice .sa-list li { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sp-advice .sa-list li:last-child { border-bottom: 0; }
+.sa-l { flex: 1 1 260px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sa-p { flex: 1 1 220px; display: flex; flex-direction: column; gap: 4px; }
+.sa-bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.sa-bar i { display: block; height: 100%; background: var(--teal); border-radius: inherit; }

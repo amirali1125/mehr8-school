@@ -78,6 +78,8 @@
     ],
     contact: { address: 'تهران، سعادت‌آباد، انتهای بلوار سعادت‌آباد، کنارگذر یادگار امام (خیابان اوین)، خیابان بهزاد، بن‌بست حلاجیان، پلاک ۷',
       phone: '۰۲۱-۲۲۳۵۰۳۷۸', tel: '+982122350378', email: 'info@mehr8.ir', hours: 'شنبه تا چهارشنبه، ۷:۳۰ تا ۱۵:۳۰', map: null,
+      // Neshan map (neshan.org): the web key is meant for pages; limit it to the school's domain in the Neshan panel.
+      geo: { lat: 35.7893, lng: 51.3762, label: 'متوسطهٔ پسرانهٔ مهر هشتم', key: 'web.9e67456c5a954dfebbfa48d07b72a1a2' },
       social: [['بله (مدرسه)', 'https://ble.ir/mehr8hsb'], ['اینستاگرام (مدرسه)', 'https://www.instagram.com/mehr8sch'], ['ایتا', 'https://eitaa.com/s/mehr8ir'], ['تلگرام', 'https://t.me/Mehr8ir'], ['آپارات', 'https://www.aparat.com/mehr8ir']] },
     faq: [
       ['ثبت‌نام دانش‌آموز جدید چطور انجام می‌شود؟', 'فرم ثبت‌نام را برخط پر کنید؛ پس از بررسی، برای مصاحبه و تکمیل پرونده با شما تماس می‌گیریم.'],
@@ -235,7 +237,9 @@
           ${c.email ? `<div><dt>${icon('mail')}رایانامه</dt><dd><a href="mailto:${esc(c.email)}" dir="ltr">${esc(c.email)}</a></dd></div>` : contactRow('mail', 'رایانامه', null, 'نشانی ایمیل')}
           ${contactRow('clock', 'ساعت پاسخ‌گویی', c.hours, 'ساعت کاری دفتر')}
         </dl>${c.social ? `<div class="social">${c.social.map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>` : ''}</div>
-        ${c.map ? `<iframe class="card map" src="${esc(c.map)}" title="نقشهٔ مدرسه" loading="lazy" style="padding:0;width:100%;border:0"></iframe>` : (SITE.draft ? `<div class="card ph map"><p>نقشهٔ مدرسه<br><span class="need">داده لازم: پیوند نقشه (نشان یا بلد)</span></p></div>` : '')}
+        ${c.geo ? `<div class="card map nmap"><div id="nmap" role="region" aria-label="نقشهٔ مدرسه: ${esc(c.geo.label)}"><p class="muted">نقشه در حال بارگذاری…</p></div>
+          <a class="btn alt nmap-go" href="https://neshan.org/maps/@${c.geo.lat},${c.geo.lng},17z,0p" target="_blank" rel="noopener">${icon('pin')}مسیریابی با نشان</a></div>`
+        : c.map ? `<iframe class="card map" src="${esc(c.map)}" title="نقشهٔ مدرسه" loading="lazy" style="padding:0;width:100%;border:0"></iframe>` : (SITE.draft ? `<div class="card ph map"><p>نقشهٔ مدرسه<br><span class="need">داده لازم: پیوند نقشه (نشان یا بلد)</span></p></div>` : '')}
       </div>
       <div class="band" style="margin-top:32px"><div><h2>سامانهٔ یکپارچهٔ مدرسه</h2><p>دانش‌آموزان، اولیا و همکاران با حساب خود وارد شوند.</p></div>
         <a class="btn gold" href="${SITE.login}">${icon('login')}ورود به سامانه</a></div>
@@ -299,6 +303,26 @@
       const slides = shown().map(x => ({ src: `assets/site/staff/p${String(x.p).padStart(3, '0')}.jpg`, cap: `رزومهٔ آقای ${x.n}، ${x.r}` }));
       viewer(slides, +b.dataset.i, 'رزومهٔ دبیر', b); });
     draw();
+  }
+
+  // The school on a Neshan map, loaded when the contact section comes near (its library is large).
+  const geo = SITE.contact.geo, mapEl = document.getElementById('nmap');
+  if (geo && mapEl) {
+    const NS = 'https://cdn.jsdelivr.net/npm/@neshan-maps-platform/leaflet@1.0.8/dist/leaflet';
+    const fail = () => { mapEl.innerHTML = `<p>${esc(SITE.contact.address)}</p><p class="muted small">نقشه بارگذاری نشد؛ از دکمهٔ «مسیریابی با نشان» استفاده کنید.</p>`; };
+    const draw = () => {
+      try {
+        mapEl.innerHTML = '';
+        const map = new L.Map(mapEl, { key: geo.key, maptype: 'neshan', poi: true, traffic: false, center: [geo.lat, geo.lng], zoom: 16, scrollWheelZoom: false });
+        const pin = L.divIcon({ className: 'nmap-pin', html: `<span class="nmap-lbl">${esc(geo.label)}</span><svg viewBox="0 0 24 32" width="30" height="40" aria-hidden="true"><path d="M12 31s-11-9.6-11-18a11 11 0 0 1 22 0c0 8.4-11 18-11 18z" fill="#0f766e" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="12.5" r="4.2" fill="#fff"/></svg>`, iconSize: [220, 76], iconAnchor: [110, 76] });
+        L.marker([geo.lat, geo.lng], { icon: pin, title: geo.label, alt: geo.label }).addTo(map);
+      } catch { fail(); }
+    };
+    const load = () => {
+      const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = NS + '.css'; document.head.appendChild(css);
+      const js = document.createElement('script'); js.src = NS + '.js'; js.onload = draw; js.onerror = fail; document.head.appendChild(js);
+    };
+    const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { io.disconnect(); load(); } }, { rootMargin: '400px' }); io.observe(mapEl);
   }
 
   // Mobile menu: a disclosure button; closes after a link is chosen or on Escape.

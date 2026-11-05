@@ -228,3 +228,11 @@ section.sec.alt { background: var(--bg2); }
 @media (max-width: 1000px) { .staff-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .staff-list { grid-template-columns: 1fr; } .tc { padding: 14px; } .tc img { width: 60px; height: 60px; } .fchip { padding: 0 13px; font-size: 14px; } }
 .lightbox.one .lb-prev, .lightbox.one .lb-next { display: none; }
+
+/* Neshan map in «تماس» (site.js) */
+.nmap { padding: 0; overflow: hidden; display: flex; flex-direction: column; place-items: stretch; text-align: start; }
+#nmap { direction: ltr; flex: 1; min-height: 320px; display: grid; place-items: center; text-align: center; z-index: 0; }
+#nmap.leaflet-container { display: block; }
+.nmap-go { margin: 10px; align-self: flex-start; }
+.leaflet-marker-icon.nmap-pin { background: none; border: 0; display: flex !important; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.nmap-lbl { direction: rtl; white-space: nowrap; padding: 3px 10px; background: #fff; color: #0f5f59; border: 1px solid #0f766e; border-radius: 8px; font-size: 13px; font-weight: 700; line-height: 1.6; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }

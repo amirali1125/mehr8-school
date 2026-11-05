@@ -562,6 +562,15 @@ const SchoolData = (() => {
   const dayIndex = isoDate => { const g = new Date(isoDate).getDay(); return g === 6 ? 0 : g <= 3 ? g + 1 : null; };
   // Timetables: x.mySchedule and x.timetable are the year's plan; x.weekOver[<Saturday of a week>] holds changes
   // made for that week only, which win over the plan: { me: { [day]: { [bell]: cell } }, cls: { [classId]: { [day]: { [bell]: subject } } } }.
+  // Each subject teacher's suggested study for a week (x.studyAdvice): minutes, days and what to study, for one class or all.
+  // An entry holds for its own week only (once) or from its week on; per subject the newest that applies wins, and one with
+  // no minutes stops the suggestion from that week.
+  function adviceFor(x, cls, isoDate) {
+    const ws = weekStart(isoDate), by = {};
+    (x.studyAdvice || []).filter(a => (!a.cls || a.cls === cls) && (a.once ? a.week === ws : a.week <= ws))
+      .sort((a, b) => a.week.localeCompare(b.week) || a.at.localeCompare(b.at)).forEach(a => { by[a.sub] = a; });
+    return Object.values(by).filter(a => a.mins > 0);
+  }
   const weekStart = isoDate => { const d = new Date(isoDate + 'T12:00:00'); d.setDate(d.getDate() - (d.getDay() + 1) % 7); return iso(d); };
   const own = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
   const meCell = (x, day, b, ws) => { const w = x.weekOver?.[ws]?.me?.[day]; return own(w, b) ? w[b] : x.mySchedule[day][b] || guideTeaching(x, day, b, ws); };
@@ -600,6 +609,6 @@ const SchoolData = (() => {
     return { type: 'class', note: `${subs.join('، ')} · ${hits.map(h => h[1]).join(' و ')}`, tt: true };
   }
   return { isReal: (schoolId, g) => !!REAL[schoolId + ':' + g], DAYS, BELLS, BELL_TIMES, BELL_ENDS, BREAK, withBreak, bellsOf, SUBJECTS, GRADE_NAME, TEACHER_SUBJECT, TESTS, MATH_DOMAINS, MARK_TYPES, DEFAULT_WEIGHTS,
-    get, org, save, reset, uid, clearSample, teachersFor, shift, dayIndex, weekStart, meCell, clsCell, clsTeacher, guideOf, gradesOf, teacherGrade, initials, photoOf,
+    get, org, save, reset, uid, clearSample, teachersFor, shift, dayIndex, weekStart, adviceFor, meCell, clsCell, clsTeacher, guideOf, gradesOf, teacherGrade, initials, photoOf,
     today: () => iso(new Date()) };
 })();
