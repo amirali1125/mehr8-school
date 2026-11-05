@@ -238,7 +238,7 @@
           ${contactRow('clock', 'ساعت پاسخ‌گویی', c.hours, 'ساعت کاری دفتر')}
         </dl>${c.social ? `<div class="social">${c.social.map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('')}</div>` : ''}</div>
         ${c.geo ? `<div class="card map nmap"><div id="nmap" role="region" aria-label="نقشهٔ مدرسه: ${esc(c.geo.label)}"><p class="muted">نقشه در حال بارگذاری…</p></div>
-          <a class="btn alt nmap-go" href="https://neshan.org/maps/@${c.geo.lat},${c.geo.lng},17z,0p" target="_blank" rel="noopener">${icon('pin')}مسیریابی با نشان</a></div>`
+          <a class="btn alt nmap-go" href="https://neshan.org/maps/routing/car/destination/${c.geo.lat.toFixed(6)},${c.geo.lng.toFixed(6)}" target="_blank" rel="noopener">${icon('pin')}مسیریابی با نشان</a></div>`
         : c.map ? `<iframe class="card map" src="${esc(c.map)}" title="نقشهٔ مدرسه" loading="lazy" style="padding:0;width:100%;border:0"></iframe>` : (SITE.draft ? `<div class="card ph map"><p>نقشهٔ مدرسه<br><span class="need">داده لازم: پیوند نقشه (نشان یا بلد)</span></p></div>` : '')}
       </div>
       <div class="band" style="margin-top:32px"><div><h2>سامانهٔ یکپارچهٔ مدرسه</h2><p>دانش‌آموزان، اولیا و همکاران با حساب خود وارد شوند.</p></div>
