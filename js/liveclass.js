@@ -32,6 +32,7 @@ const LiveClass = (() => {
   const csv = rows => rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
   const SV = (p, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   const IC = {
+    star: SV('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>'),
     cam: SV('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>'),
     camOff: SV('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3M2 2l20 20"/>'),
     mic: SV('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
@@ -692,6 +693,8 @@ const LiveClass = (() => {
   function userMenu(b, key) {
     const v = R.people.get(key); if (!v) return;
     menu(b, [{ ic: IC.present, label: R.presenter === key ? 'پس گرفتن ارائه' : 'ارائه‌دهنده کن', run: () => { R.presenter = R.presenter === key ? null : key; sendPeople(); renderTools(); renderNav(); renderSide('users'); } },
+      v.sid && R.o.data && typeof Behavior !== 'undefined' && { ic: IC.star, label: 'امتیاز رفتاری', run: () => Behavior.giveModal(R.o.data(), [v.sid], { sub: R.o.sub, by: R.me.name, save: R.o.save,
+        after: l => l.forEach(e => send({ t: 'praise', to: key, k: e.k, v: e.v, sub: e.sub })) }) },
       { ic: IC.pen, label: 'اجازهٔ نوشتن روی تخته', check: R.writers.has(v.sid), run: () => { R.writers.has(v.sid) ? R.writers.delete(v.sid) : R.writers.add(v.sid); sendPeople(); renderSide('users'); } },
       R.cfg.askTalk && { ic: IC.mic, label: 'اجازهٔ صحبت', check: !!v.talk, run: () => giveTalk(key, !v.talk) },
       v.mic && { ic: IC.micOff, label: 'خاموش کردن میکروفون', run: () => { v.talk = false; send({ t: 'mute', to: key }); sendPeople(); } },
@@ -1348,6 +1351,7 @@ const LiveClass = (() => {
     nomedia() { R.pc?.close(); R.pc = null; R.rCam = R.rScreen = null; renderTiles(); if (R.view === 'screen' || R.view === 'cam') setView(R.view); },
     'up-answer'(m) { R.up?.setRemoteDescription(m.sdp).then(() => flushIce(R.up)).catch(() => {}); },
     'up-ice'(m) { if (m.to) addIce(R.up, m.c); },
+    praise(m) { const l = Behavior.skill(m.k)[1]; beep(m.v > 0 ? 990 : 440, .18); toast(m.v > 0 ? `آفرین! +۱ ${l} از ${R.hostName}` : `−۱ ${l}؛ ${R.hostName} یادآوری کرد.`); },
     talk(m) { R.mayTalk = m.on; beep(m.on ? 880 : 520); if (m.on) { if (!R.mic) toggleMic().then(() => R?.mic && toast('معلم اجازهٔ صحبت داد؛ میکروفونت روشن است.')); } else { if (R.mic) toggleMic(false); toast('اجازهٔ صحبت تمام شد.'); } },
     mute(m) { if (m.all && m.except === R.me.key) return; R.mayTalk = false; if (R.mic) { toggleMic(false); toast('معلم میکروفون شما را خاموش کرد.'); } },
     timer(m) { R.timer = m.timer; tick(); },

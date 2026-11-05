@@ -333,7 +333,7 @@ const Classroom = ctx => {
         ${kids.map(k => secBlock(k, s, depth + 1)).join('')}
         ${s || ro() ? '' : `<div class="cr-plus-row"><button type="button" class="cr-plus" data-act="cl-add" data-id="${sc.id}" aria-label="افزودن فعالیت یا منبع به «${esc(sc.title)}»" title="افزودن فعالیت یا منبع">+</button></div>`}</div></section>`;
   }
-  const TABS = [['course', 'درس'], ['live', 'کلاس آنلاین'], ['settings', 'تنظیمات'], ['people', 'شرکت‌کنندگان'], ['grades', 'نمره‌ها'], ['acts', 'فعالیت‌ها'], ['comp', 'تکمیل فعالیت‌ها'], ['groups', 'گروه‌ها']];
+  const TABS = [['course', 'درس'], ['live', 'کلاس آنلاین'], ['settings', 'تنظیمات'], ['people', 'شرکت‌کنندگان'], ['behavior', 'امتیاز رفتاری'], ['grades', 'نمره‌ها'], ['acts', 'فعالیت‌ها'], ['comp', 'تکمیل فعالیت‌ها'], ['groups', 'گروه‌ها']];
   function coursePage() {
     const c = C(), s = state.as ? student(state.as) : null;
     const asSel = `<label class="row small cr-as">از نگاه دانش‌آموز <select class="input" id="cr-as"><option value="">نمای معلم</option>${ctx.studentOptions(state.as)}</select></label>`;
@@ -349,6 +349,7 @@ const Classroom = ctx => {
     else if (state.tab === 'groups') body = groupsTab();
     else if (state.tab === 'settings') body = settingsTab();
     else if (state.tab === 'people') body = peopleTab();
+    else if (state.tab === 'behavior') body = Behavior.tab(BO());
     else if (state.tab === 'acts') body = actsTab();
     else {
       const ng = items().filter(i => i.type === 'assign').reduce((a, i) => a + needGrading(i).length, 0), allCol = c.secs.every(k => state.col.has(k.id));
@@ -439,7 +440,9 @@ const Classroom = ctx => {
     });
   }
   // What liveclass.js needs from this page.
-  const O = () => ({ sub: state.sub, after: id => { state.after = id; state.tab = 'course'; state.item = ''; render(); scrollTo(0, 0); }, save, render, ro: ro(), me, empty, className, students: () => d().students, classes: () => d().classes, as: () => state.as ? student(state.as) : null,
+  // What behavior.js needs from this page.
+  const BO = () => ({ x: d(), sub: state.sub, ro: ro(), me: me(), save, render });
+  const O = () => ({ data: d, sub: state.sub, after: id => { state.after = id; state.tab = 'course'; state.item = ''; render(); scrollTo(0, 0); }, save, render, ro: ro(), me, empty, className, students: () => d().students, classes: () => d().classes, as: () => state.as ? student(state.as) : null,
     kpi: (l, v, sub, _h, tone) => `<div class="card kpi ${tone ? 'tone-' + tone : ''}"><div class="l">${esc(l)}</div><div class="v">${v}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>` });
   function studentCourse(s) {
     const c = C(), mine = c.items.filter(i => listedFor(i, s) && !secHidden(c.secs.find(k => k.id === (i.sec || 'gen')) || {}));
@@ -808,6 +811,7 @@ const Classroom = ctx => {
     'cl-af-hw': () => itemModal('assign', null, 'gen'), 'cl-af-quiz': () => itemModal('quiz', null, 'gen'), 'cl-af-file': () => itemModal('file', null, 'gen'),
     'cl-af-study': b => studyModal(b.dataset.id || null),
     'cl-af-grades': () => { state.after = ''; state.tab = 'grades'; render(); scrollTo(0, 0); },
+    ...Object.fromEntries(Behavior.ACTS.map(k => [k, b => Behavior.act(k, b, BO())])),
     ...Object.fromEntries(['lv-new', 'lv-edit', 'lv-report', 'lv-dash', 'lv-rec', 'lv-recs', 'lv-finish', 'lv-del', 'lv-now', 'lv-join'].map(k => [k, b => LiveClass.act(k, b, C(), O())])),
     'cl-link': () => {
       const link = document.getElementById('on-link').value.trim();
@@ -936,6 +940,7 @@ const Classroom = ctx => {
     });
   }
   function bind() {
+    if (state.tab === 'behavior') Behavior.bind(BO());
     const as = document.getElementById('cr-as'); if (as) as.onchange = () => { state.as = as.value; state.edit = false; Q.leave(); render(); };
     const gb = document.getElementById('cr-gbc'); if (gb) gb.onchange = () => { state.gbCls = gb.value; render(); };
     document.querySelectorAll('[data-bk]').forEach(cb => cb.onchange = () => { if (cb.checked) state.picked.add(cb.dataset.bk); else state.picked.delete(cb.dataset.bk); render(); });

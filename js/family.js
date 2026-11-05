@@ -122,7 +122,7 @@ const Family = ctx => {
     const liveNow = lv.map(v => `<div class="card fm-live"><span class="tile tone-rose" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></span>
       <div class="fm-l"><b><span class="fm-live-dot"></span>کلاس آنلاین ${esc(v.sub)} در حال برگزاری است</b><span class="muted small">${esc(v.title)}${v.startedAt ? ` · از ساعت ${dg(new Date(v.startedAt).toTimeString().slice(0, 5))}` : ''}</span></div>
       <button type="button" class="btn primary" data-act="fm-live" data-sub="${esc(v.sub)}" data-id="${esc(v.id)}">ورود سریع</button></div>`).join('');
-    return who(s) + liveNow + kpis + meet + `<div class="grid g2">${classes}${todo}</div><div class="grid g2">${study}${marks}</div>${news}`;
+    return who(s) + liveNow + kpis + meet + `<div class="grid g2">${classes}${todo}</div><div class="grid g2">${study}${marks}</div><div class="grid g2">${Behavior.familyCard(data(), s.id, isParent())}${news}</div>`;
   }
   function workLi(w) {
     const late = !w.done && w.at && w.at.slice(0, 10) < today;
