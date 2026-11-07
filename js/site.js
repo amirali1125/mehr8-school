@@ -119,16 +119,13 @@
   const draft = need => SITE.draft ? `<div class="card ph"><p>این بخش هنوز داده ندارد.</p><span class="need">داده لازم: ${esc(need)}</span></div>` : '';
 
   const STAFF = window.SITE_STAFF;
-  // A page that shows one section on its own (contact.html: <body data-only="contact">); its links lead back to site.html.
-  const ONLY = document.body.dataset.only || '';
-  const to = id => (ONLY && id !== ONLY ? 'site.html' : '') + '#' + id;
   const NAV = [['about', 'درباره ما'], ['stages', 'دوره‌ها'], ['staff', 'کادر آموزشی'], ['life', 'زندگی در مدرسه'], ['news', 'اخبار و رویدادها'], ['contact', 'تماس']];
   // The three things a visitor does here, as buttons that open their own page. On phones only sign-in
   // stays in the bar; the other two move into the menu.
   const ACTS = [['apply.html', 'brief', 'همکاری با ما', 'ghost'], ['enroll.html', 'pen', 'ثبت‌نام دانش‌آموز', 'gold'], [SITE.login, 'login', 'ورود به سامانه', 'primary']];
   document.getElementById('top').innerHTML = `<div class="wrap">
-      <a class="st-brand" href="${ONLY ? 'site.html' : '#top-of-page'}" aria-label="${esc(SITE.name)}، بالای صفحه"><img src="assets/logo-mehr8.png" alt=""></a>
-      <nav class="st-nav" id="st-nav" aria-label="بخش‌های سایت"><ul>${NAV.map(([id, l]) => `<li><a href="${to(id)}">${l}</a></li>`).join('')}
+      <a class="st-brand" href="#top-of-page" aria-label="${esc(SITE.name)}، بالای صفحه"><img src="assets/logo-mehr8.png" alt=""></a>
+      <nav class="st-nav" id="st-nav" aria-label="بخش‌های سایت"><ul>${NAV.map(([id, l]) => `<li><a href="#${id}">${l}</a></li>`).join('')}
         ${ACTS.slice(0, 2).map(([href, ic, l]) => `<li class="m-only"><a href="${href}">${icon(ic)}${l}</a></li>`).join('')}</ul></nav>
       <div class="st-act">${ACTS.map(([href, ic, l, tone]) => `<a class="btn ${tone} ${tone === 'primary' ? 'st-login' : 'alt'}" href="${href}" aria-label="${l}">${icon(ic)}<span>${l}</span></a>`).join('')}</div>
       <button class="st-menu" type="button" aria-expanded="false" aria-controls="st-nav" aria-label="فهرست بخش‌ها">${icon('menu')}</button>
@@ -251,12 +248,10 @@
         <a class="btn gold" href="${SITE.login}">${icon('login')}ورود به سامانه</a></div>
     </div></section>`;
 
-  if (ONLY) document.querySelectorAll('#main > section').forEach(s => { s.hidden = s.id !== ONLY; });
-
   const year = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric' }).format(new Date());
   document.getElementById('foot').innerHTML = `<div class="wrap"><div class="cols">
       <div><div class="brand"><img src="assets/logo-mehr8.png" alt=""><b style="color:#fff">${esc(SITE.name)}</b></div><p>${esc(SITE.motto)}</p><p>از مدارس <a href="${SITE.parent.url}" target="_blank" rel="noopener">${esc(SITE.parent.name)}</a></p></div>
-      <nav aria-label="پیوندهای سایت"><h2>بخش‌ها</h2><ul>${NAV.map(([id, l]) => `<li><a href="${to(id)}">${l}</a></li>`).join('')}</ul></nav>
+      <nav aria-label="پیوندهای سایت"><h2>بخش‌ها</h2><ul>${NAV.map(([id, l]) => `<li><a href="#${id}">${l}</a></li>`).join('')}</ul></nav>
       <nav aria-label="سامانه‌ها"><h2>سامانه‌ها</h2><ul>
         <li><a href="${SITE.login}">ورود به سامانهٔ مدرسه</a></li><li><a href="${SITE.login}&as=student">ورود دانش‌آموز</a></li><li><a href="${SITE.login}&as=parent">ورود اولیا</a></li><li><a href="${SITE.lms}" target="_blank" rel="noopener">کلاس برخط (LMS)</a></li>
         <li><a href="enroll.html">ثبت‌نام دانش‌آموز</a></li><li><a href="apply.html">همکاری با ما</a></li></ul>
@@ -356,7 +351,7 @@
   links.forEach(a => a.addEventListener('click', () => mark(a.hash.slice(1))));
   const bar = document.querySelector('.st-progress i');
   const up = document.createElement('a');
-  up.className = 'st-up'; up.href = ONLY ? '#main' : '#top-of-page'; up.innerHTML = `${icon('up')}<span class="vh">بالای صفحه</span>`;
+  up.className = 'st-up'; up.href = '#top-of-page'; up.innerHTML = `${icon('up')}<span class="vh">بالای صفحه</span>`;
   document.getElementById('foot').appendChild(up);
   const onScroll = () => {
     const max = document.documentElement.scrollHeight - innerHeight;
