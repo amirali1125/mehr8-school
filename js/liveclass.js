@@ -384,9 +384,65 @@ const LiveClass = (() => {
   const flushIce = pc => { (pc._q || []).forEach(c => pc.addIceCandidate(c).catch(() => {})); pc._q = []; };
   const img = src => { if (!src) return null; let im = R.imgs.get(src); if (!im) { im = new Image(); im.onload = () => paintBoard(); im.src = src; R.imgs.set(src, im); } return im; };
 
+  /* ---- between devices (online.html): a PeerJS link to the teacher's tab carries every channel's messages ----
+     The teacher's tab is the hub, as with BroadcastChannel: what one student sends reaches the host and is passed on
+     to the others; cameras and microphones keep their own WebRTC connections, with PeerJS's public STUN/TURN servers. */
+  const NET = { on: false, peer: null, conns: new Set(), chans: new Map(), host: false, hostId: '', dialT: 0 };
+  const ICE_DEF = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }] };
+  const ICE = () => NET.on ? (window.peerjs?.util?.defaultConfig || ICE_DEF) : undefined;
+  const pid = id => 'mehr8lv-' + String(id).replace(/[^\w-]/g, '');
+  function mkChan(name) {
+    if (!NET.on) return new BroadcastChannel(name);
+    const ch = { onmessage: null, postMessage: m => netOut({ n: name, m }), close: () => { if (NET.chans.get(name) === ch) NET.chans.delete(name); } };
+    NET.chans.set(name, ch); return ch;
+  }
+  function netOut(pk, except) { NET.conns.forEach(c => { if (c !== except && c.open) try { c.send(pk); } catch { /* closing */ } }); }
+  function netIn(c, pk) {
+    if (!pk || typeof pk.n !== 'string') return;
+    if (NET.host) { if (pk.m?.t === 'hello' && pk.m.from) c.key = pk.m.from; netOut(pk, c); }
+    NET.chans.get(pk.n)?.onmessage?.({ data: pk.m });
+  }
+  const redial = () => { clearTimeout(NET.dialT); if (NET.on && !NET.host) NET.dialT = setTimeout(netDial, 3000); };
+  function netWire(c) {
+    c.on('open', () => { clearTimeout(NET.dialT); NET.conns.add(c); if (!NET.host && R && !R.host) hello(); });
+    c.on('data', d => netIn(c, d));
+    c.on('close', () => {
+      NET.conns.delete(c);
+      if (NET.host && c.key && R) { const pk = { n: 'mehr8-live:' + R.x.id, m: { t: 'bye', from: c.key } }; netOut(pk, c); NET.chans.get(pk.n)?.onmessage?.({ data: pk.m }); }
+      if (!NET.host) redial();
+    });
+  }
+  function netDial() {
+    if (!NET.on || NET.host || !NET.peer || NET.peer.destroyed) return;
+    const c = NET.peer.connect(NET.hostId, { reliable: true }); netWire(c);
+    NET.dialT = setTimeout(() => { if (!c.open) { c.close(); redial(); } }, 10000);
+  }
+  function netStart(id, host) {
+    return new Promise((ok, no) => {
+      if (!window.Peer) return no({ type: 'no-lib' });
+      Object.assign(NET, { on: true, host, hostId: pid(id) });
+      // Closing the tab frees the room's address on the PeerJS server at once, so a reload can host again.
+      addEventListener('pagehide', netStop, { once: true });
+      const p = NET.peer = host ? new Peer(NET.hostId) : new Peer();
+      const t = setTimeout(() => no({ type: 'timeout' }), 15000);
+      p.on('open', () => { clearTimeout(t); if (host) p.on('connection', c => netWire(c)); else netDial(); ok(); });
+      p.on('error', e => { if (e.type === 'peer-unavailable') return redial(); if (!p.open) { clearTimeout(t); no(e); } });
+      p.on('disconnected', () => { if (NET.on && !p.destroyed) try { p.reconnect(); } catch { /* gone */ } });
+    });
+  }
+  function netStop() {
+    clearTimeout(NET.dialT); NET.conns.forEach(c => { try { c.close(); } catch { /* closed */ } });
+    try { NET.peer?.destroy(); } catch { /* gone */ }
+    Object.assign(NET, { on: false, peer: null, conns: new Set(), chans: new Map(), host: false, hostId: '' });
+  }
+
   async function open(c, o, x, as) {
     if (R) leave(false);
     const host = !as;
+    if (o.relay) {
+      try { await netStart(x.id, host); }
+      catch (e) { netStop(); if (!(o.tryHost && e?.type === 'unavailable-id')) toast(e?.type === 'unavailable-id' ? 'این جلسه همین حالا در زبانه یا دستگاه دیگری باز است.' : 'اتصال به سرور واسط برقرار نشد؛ اینترنت را بررسی کنید و دوباره امتحان کنید.'); return e?.type || 'error'; }
+    }
     const me = host ? { key: 'host', name: o.me() } : { key: 's:' + as.id + ':' + rid().slice(0, 4), sid: as.id, name: as.name };
     const main = newSp();
     if (host) {
@@ -406,7 +462,7 @@ const LiveClass = (() => {
       cam: null, mic: null, screen: null, rCam: null, rScreen: null, peers: new Map(), pc: null, up: null,
       rec: null, recOn: false, timer: null, br: null, visit: null, startedAt: host ? x.startedAt : null, started: Date.now(),
       waiting: !host, side: 'chat', unread: 0, presMin: false, menu: null };
-    R.chan = new BroadcastChannel('mehr8-live:' + x.id);
+    R.chan = mkChan('mehr8-live:' + x.id);
     R.chan.onmessage = e => onMain(e.data);
     shell(); applyLayout(); setView('board'); renderAll(); R.tickT = setInterval(tick, 1000); R.vadT = setInterval(listen, 200);
     if (host) send({ t: 'host-here' }); else { hello(); try { if (window.Notification?.permission === 'default') Notification.requestPermission().catch(() => {}); } catch { /* not supported */ } }
@@ -974,7 +1030,7 @@ const LiveClass = (() => {
     const t = []; if (R.cam) t.push([R.cam.getVideoTracks()[0], 'cam']); if (R.mic) t.push([R.mic.getAudioTracks()[0], 'cam']); if (R.screen) t.push([R.screen.getVideoTracks()[0], 'screen']);
     let mx = null; try { mx = busOut(key).getAudioTracks()[0]; } catch { /* no mixing */ }
     if (!t.filter(([x]) => x).length && !mx) return send({ t: 'nomedia', to: key });
-    const pc = p.pc = new RTCPeerConnection(), cm = new MediaStream(), sc = new MediaStream(), mm = new MediaStream();
+    const pc = p.pc = new RTCPeerConnection(ICE()), cm = new MediaStream(), sc = new MediaStream(), mm = new MediaStream();
     t.forEach(([tr, k]) => tr && pc.addTrack(tr, k === 'cam' ? cm : sc)); if (mx) pc.addTrack(mx, mm);
     pc.onicecandidate = e => e.candidate && send({ t: 'ice', to: key, c: e.candidate.toJSON() });
     await pc.setLocalDescription(await pc.createOffer());
@@ -986,7 +1042,7 @@ const LiveClass = (() => {
     send({ t: 'media', from: R.me.key, mic: !!R.mic, cam: !!R.cam });
     const t = [...(R.mic?.getAudioTracks() || []), ...(R.cam?.getVideoTracks() || [])];
     if (!t.length || R.waiting) return send({ t: 'up-none', from: R.me.key });
-    const pc = R.up = new RTCPeerConnection(), ms = new MediaStream(t); t.forEach(tr => pc.addTrack(tr, ms));
+    const pc = R.up = new RTCPeerConnection(ICE()), ms = new MediaStream(t); t.forEach(tr => pc.addTrack(tr, ms));
     pc.onicecandidate = e => e.candidate && send({ t: 'up-ice', from: R.me.key, c: e.candidate.toJSON() });
     await pc.setLocalDescription(await pc.createOffer()); send({ t: 'up-offer', from: R.me.key, sdp: pc.localDescription.toJSON() });
   }
@@ -1233,7 +1289,7 @@ const LiveClass = (() => {
   function startBr(n, m, assign) {
     R.br = { until: Date.now() + m * 60000, rooms: Array.from({ length: n }, (_, k) => ({ k, name: `اتاق ${fa(k + 1)}`, keys: [], names: [], sp: newSp() })) };
     assign.forEach((k, key) => { const r = R.br.rooms[k]; r.keys.push(key); r.names.push(R.people.get(key)?.name || ''); });
-    R.br.rooms.forEach(r => { r.chan = new BroadcastChannel(`mehr8-live:${R.x.id}:br${r.k}`); r.chan.onmessage = e => onRoom(r, e.data); });
+    R.br.rooms.forEach(r => { r.chan = mkChan(`mehr8-live:${R.x.id}:br${r.k}`); r.chan.onmessage = e => onRoom(r, e.data); });
     send({ t: 'breakout', br: { until: R.br.until, rooms: R.br.rooms.map(({ k, name, keys }) => ({ k, name, keys })) } });
     openSide('users'); toast(`${fa(n)} اتاق جانبی برای ${fa(m)} دقیقه باز شد.`);
   }
@@ -1259,7 +1315,7 @@ const LiveClass = (() => {
     R.br = null; saveSoon(); renderAll(); toast('اتاق‌های جانبی تمام شد.');
   }
   function enterRoom(info, until) {
-    R.room = { k: info.k, name: info.name, until, sp: newSp(), chan: new BroadcastChannel(`mehr8-live:${R.x.id}:br${info.k}`) };
+    R.room = { k: info.k, name: info.name, until, sp: newSp(), chan: mkChan(`mehr8-live:${R.x.id}:br${info.k}`) };
     R.room.chan.onmessage = e => onRoomMsg(e.data); R.sp = R.room.sp; R.sel = null; setView('board'); renderAll();
     R.room.chan.postMessage({ t: 'r-hello', from: R.me.key, name: R.me.name }); beep(600); toast(`به «${info.name}» رفتید.`);
   }
@@ -1280,6 +1336,8 @@ const LiveClass = (() => {
   const HOST = {
     hello(m) {
       const ok = (R.cfg.ok || []).includes(m.sid);
+      // A room with a size limit (online.html): the host plus o.max - 1 others.
+      if (R.o.max && !R.people.has(m.from) && R.people.size + 1 >= R.o.max) return send({ t: 'denied', to: m.from, full: R.o.max });
       if (R.kicked.has(m.sid) || (R.cfg.policy === 'deny' && !ok)) return send({ t: 'denied', to: m.from });
       if (R.cfg.policy === 'ask' && !ok) { R.pending.set(m.from, { key: m.from, sid: m.sid, name: m.name }); send({ t: 'held', to: m.from }); beep(520); toast(`${m.name} منتظر پذیرش است.`); renderSide('users'); badges(); return; }
       admit({ key: m.from, sid: m.sid, name: m.name });
@@ -1288,7 +1346,7 @@ const LiveClass = (() => {
     answer(m) { const pc = R.peers.get(m.from)?.pc; pc?.setRemoteDescription(m.sdp).then(() => flushIce(pc)).catch(() => {}); },
     ice(m) { if (m.from) addIce(R.peers.get(m.from)?.pc, m.c); },
     async 'up-offer'(m) {
-      if (!R.people.has(m.from)) return; const p = peer(m.from); p.up?.close(); const pc = p.up = new RTCPeerConnection();
+      if (!R.people.has(m.from)) return; const p = peer(m.from); p.up?.close(); const pc = p.up = new RTCPeerConnection(ICE());
       pc.ontrack = e => { p.stream = e.streams[0]; R.recMix?.add(p.stream); hear(m.from, p.stream); busIn(m.from, p.stream); renderTiles(); };
       pc.onicecandidate = e => e.candidate && send({ t: 'up-ice', to: m.from, c: e.candidate.toJSON() });
       await pc.setRemoteDescription(m.sdp); flushIce(pc); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'up-answer', to: m.from, sdp: pc.localDescription.toJSON() });
@@ -1312,7 +1370,7 @@ const LiveClass = (() => {
   const STUDENT = {
     'host-here'() { R.waiting = true; waitMsg('منتظر ورود معلم…'); hello(); },
     held() { waitMsg('منتظر پذیرش معلم…'); },
-    denied() { out('ورود ممکن نشد', 'معلم ورود شما به این کلاس را نپذیرفت.'); },
+    denied(m) { out('ورود ممکن نشد', m.full ? `ظرفیت این جلسه (${fa(m.full)} نفر) پر است.` : 'معلم ورود شما به این کلاس را نپذیرفت.'); },
     kick() { out('بیرون از کلاس', 'معلم شما را از این جلسه بیرون کرد.'); },
     state(m) {
       R.waiting = false; waitMsg(null); R.hostName = m.hostName; R.startedAt = m.startedAt; R.main = m.main; if (!R.room) R.sp = R.main;
@@ -1342,7 +1400,7 @@ const LiveClass = (() => {
       if (p?.closed && p.quiz && v != null && !p.told) { p.told = true; toast(v === p.correct ? 'آزمونک تمام شد: پاسخ شما درست بود.' : `آزمونک تمام شد؛ پاسخ درست: ${p.opts[p.correct]}`); } } renderSide('poll'); },
     cfg(m) { R.cfg = m.cfg; applyLocks(); },
     async offer(m) {
-      R.pc?.close(); R.rCam = R.rScreen = null; const pc = R.pc = new RTCPeerConnection();
+      R.pc?.close(); R.rCam = R.rScreen = null; const pc = R.pc = new RTCPeerConnection(ICE());
       pc.ontrack = e => { const s = e.streams[0]; if (s.id === m.ids.mix) { const a = R.mixEl || (R.mixEl = new Audio()); a.srcObject = s; a.play().catch(() => {}); return; } if (s.id === m.ids.screen) R.rScreen = s; else R.rCam = s; renderTiles(); if (R.view === 'screen' || R.view === 'cam') setView(R.view); };
       pc.onicecandidate = e => e.candidate && send({ t: 'ice', from: R.me.key, c: e.candidate.toJSON() });
       await pc.setRemoteDescription(m.sdp); flushIce(pc); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'answer', from: R.me.key, sdp: pc.localDescription.toJSON() });
@@ -1471,7 +1529,7 @@ const LiveClass = (() => {
     [R.cam, R.mic, R.screen].forEach(s => s?.getTracks().forEach(t => t.stop()));
     R.peers.forEach(p => { p.pc?.close(); p.up?.close(); }); R.pc?.close(); R.up?.close();
     R.br?.rooms.forEach(r => r.chan.close()); R.room?.chan.close();
-    clearInterval(R.tickT); clearInterval(R.vadT); R.vad?.ac?.close().catch(() => {}); R.bus?.ac.close().catch(() => {}); if (R.mixEl) { R.mixEl.pause(); R.mixEl.srcObject = null; } clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
+    clearInterval(R.tickT); clearInterval(R.vadT); R.vad?.ac?.close().catch(() => {}); R.bus?.ac.close().catch(() => {}); if (R.mixEl) { R.mixEl.pause(); R.mixEl.srcObject = null; } clearTimeout(R.pT); clearTimeout(R.nT); R.ro?.disconnect(); R.chan.close(); if (NET.on) netStop(); if (R.extUrl) URL.revokeObjectURL(R.extUrl);
     removeEventListener('beforeunload', unload); document.removeEventListener('keydown', onKey);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     if (R.title0) document.title = R.title0;
@@ -1502,5 +1560,5 @@ const LiveClass = (() => {
     const x = sessOf(c, id); if (!x) return null; const r = roster(o, x);
     return { x, mins: mins(x), total: r.length, present: r.filter(s => x.att?.[s.id]).length, absent: r.filter(s => !x.att?.[s.id]), chat: (x.chat || []).filter(m => !m.sys).length, polls: (x.polls || []).length, recs: (x.recs || []).length, cls: clsName(o, x.cls) };
   }
-  return { card, tab, act, onAirFor, brief, active: () => !!R };
+  return { card, tab, act, onAirFor, brief, room: open, active: () => !!R };
 })();
